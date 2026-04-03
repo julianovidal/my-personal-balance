@@ -1,0 +1,70 @@
+services:
+  db:
+    image: docker.io/library/postgres:16
+    container_name: balance-db
+    environment:
+      POSTGRES_DB: balance
+      POSTGRES_USER: balance
+      POSTGRES_PASSWORD: balance
+    ports:
+      - "5432:5432"
+    volumes:
+      - balance_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U balance -d balance"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+    container_name: balance-api
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://balance:balance@db:5432/balance
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  classifier:
+    build:
+      context: ./classifier
+    container_name: balance-classifier
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://balance:balance@db:5432/balance
+      CORS_ORIGINS: '["http://localhost:5173"]'
+      MODEL_DATA_DIR: /app/data
+    ports:
+      - "8001:8001"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./classifier:/app
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: balance-web
+    environment:
+      VITE_API_URL: http://localhost:8000/api
+      VITE_CLASSIFIER_API_URL: http://localhost:8001
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+      - classifier
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  balance_pg_data:
