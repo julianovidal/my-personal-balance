@@ -8,5 +8,13 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src")
     }
+  },
+  optimizeDeps: {
+    include: [
+      "@radix-ui/react-dialog",
+      "@radix-ui/react-label",
+      "@radix-ui/react-select",
+      "@radix-ui/react-slot"
+    ]
   }
 });
