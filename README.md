@@ -1,6 +1,7 @@
-# Balance 3
+# My Personla Balance
 
 Local expense manager scaffold:
+
 - Backend: FastAPI + SQLAlchemy + JWT auth
 - Classifier: FastAPI + scikit-learn (per-account transaction tag prediction)
 - Frontend: React + TypeScript + Tailwind + shadcn-style components
@@ -8,6 +9,7 @@ Local expense manager scaffold:
 - Runtime: Podman compose
 
 ## Features in this baseline
+
 - Login and register
 - Profile page
 - Accounts CRUD
@@ -27,6 +29,7 @@ Local expense manager scaffold:
 - Seed script with demo data
 
 ## Domain model
+
 - users (`id`, `name`, `email`, `password`)
 - accounts (`id`, `name`, `currency`, `user_id`)
 - tags (`id`, `label`, `user_id`)
@@ -35,6 +38,7 @@ Local expense manager scaffold:
 ## Run locally with Podman
 
 Prerequisites:
+
 - podman
 - podman-compose
 
@@ -45,6 +49,7 @@ podman-compose -f podman-compose.yml up --build
 ```
 
 Apps:
+
 - Frontend: http://localhost:5173
 - Backend docs: http://localhost:8000/docs
 - Classifier health: http://localhost:8001/health
@@ -53,6 +58,7 @@ Apps:
 ## Database migrations
 
 The backend container runs migrations at startup via:
+
 - `alembic upgrade head`
 
 To run manually:
@@ -71,20 +77,25 @@ podman exec -it balance-api python -m app.scripts.seed
 ```
 
 Demo login:
+
 - Email: `demo@balance.local`
 - Password: `demo1234`
 
 ## CSV/XLSX import format
+
 Required columns:
+
 - `date`
 - `description`
 - `amount`
 
 Optional:
+
 - `currency` (defaults to selected account currency if missing/blank)
 - `tag_id`
 
 ## Suggested next steps
+
 - Add pagination and server-side sorting
 - Add monthly charts and category breakdown
 - Add automated tests
