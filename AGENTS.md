@@ -57,10 +57,11 @@ Apps:
 
 - Python 3.12 (both backend and classifier)
 - PostgreSQL 16
-- Node.js 22 (via `node:22-alpine` Docker image); TypeScript 5.9 + pnpm (latest stable via `corepack enable pnpm`); React 19, Vite 8, Tailwind 3, TanStack Query 5
+- Node.js 22 (via `node:22-alpine` Docker image); TypeScript 5.9 + pnpm (latest stable via `corepack enable pnpm`); React 19, Vite 8, Tailwind 3, TanStack Query 5, shadcn/ui (Radix UI + CVA), Vitest + Testing Library
 
 ## Recent Changes
 
 - 001-migrate-python-uv: Added Python 3.12 (both backend and classifier)
 - 002-frontend-pnpm-migration: Migrated frontend package manager to pnpm
 - 003-react19-vite8-migration: Migrated frontend from React 18 + Vite 7 to React 19 + Vite 8; TypeScript 5.9 / Node.js 22 + React 19.2.4, Vite 8.0.3, @vitejs/plugin-react 6.0.1, pnpm 10
+- 004-shadcn-migration: Replaced custom ui.tsx component barrel with official shadcn/ui library (Radix UI + CVA + Tailwind CSS); added Vitest + Testing Library for frontend interaction tests
