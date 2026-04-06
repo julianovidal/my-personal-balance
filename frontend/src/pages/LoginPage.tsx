@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Input, Label } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function LoginPage() {
@@ -28,7 +31,7 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md p-5">
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -40,17 +43,17 @@ export function LoginPage() {
 
         {mode === "register" && (
           <div className="mb-3">
-            <Label>Name</Label>
+            <Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Name</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
         )}
 
         <div className="mb-3">
-          <Label>Email</Label>
+          <Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email</Label>
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         <div className="mb-4">
-          <Label>Password</Label>
+          <Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Password</Label>
           <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
 

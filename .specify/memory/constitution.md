@@ -1,20 +1,22 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.1.0 → 1.1.1
-Modified principles: N/A
+Version change: 1.1.1 → 1.1.2
+Modified principles: §III User Experience Consistency, §Technology Constraints table
 Added sections: N/A
 Removed sections: N/A
 Amendment summary:
-  - §Development Workflow §6 Branch Naming: added `docs` work-type prefix for
-    documentation changes (README, AGENTS.md, specs, and other doc artifacts).
-    AGENTS.md updated in lockstep.
+  - §Technology Constraints: updated Frontend row from "shadcn-style components" to
+    "shadcn/ui" to reflect the official Radix UI + CVA + Tailwind component library
+    adopted in feat/004-shadcn-migration.
+  - §III User Experience Consistency: updated wording from "shadcn-style component
+    library" to "shadcn/ui component library" for consistency.
 Templates reviewed:
-  - .specify/templates/plan-template.md   ✅ No branch-naming references; unaffected
-  - .specify/templates/spec-template.md   ✅ No branch-naming references; unaffected
-  - .specify/templates/tasks-template.md  ✅ No branch-naming references; unaffected
-  - .specify/templates/agent-file-template.md ✅ No branch-naming references; unaffected
-  - README.md                             ✅ No branch-naming references; unaffected
+  - .specify/templates/plan-template.md   ✅ No UI-library references; unaffected
+  - .specify/templates/spec-template.md   ✅ No UI-library references; unaffected
+  - .specify/templates/tasks-template.md  ✅ No UI-library references; unaffected
+  - .specify/templates/agent-file-template.md ✅ No UI-library references; unaffected
+  - README.md                             ✅ No UI-library references; unaffected
 Deferred TODOs: None
 -->
 
@@ -65,7 +67,7 @@ provides a safety net for future refactoring.
 
 The frontend MUST deliver a coherent and predictable experience across all screens:
 
-- UI components MUST be drawn from the established shadcn-style component library.
+- UI components MUST be drawn from the established shadcn/ui component library.
   Custom one-off components are NOT permitted unless the library cannot fulfill the
   requirement, with documented justification.
 - Loading, error, and empty states MUST be handled explicitly on every data-fetching
@@ -112,7 +114,7 @@ without a formal constitution amendment:
 | Backend API | FastAPI + SQLAlchemy + Alembic + JWT |
 | Database | PostgreSQL |
 | Classifier | FastAPI + scikit-learn |
-| Frontend | React + TypeScript + Tailwind CSS + shadcn-style components |
+| Frontend | React + TypeScript + Tailwind CSS + shadcn/ui |
 | Runtime | Podman + podman-compose |
 
 - Dependencies MUST be pinned to exact versions in their respective lock files
@@ -177,4 +179,4 @@ be completed before coding begins and re-verified after Phase 1 design.
 AGENTS.md files (`backend/AGENTS.md`, `frontend/AGENTS.md`, `classifier/AGENTS.md`)
 alongside this constitution.
 
-**Version**: 1.1.1 | **Ratified**: 2026-04-06 | **Last Amended**: 2026-04-06
+**Version**: 1.1.2 | **Ratified**: 2026-04-06 | **Last Amended**: 2026-04-06

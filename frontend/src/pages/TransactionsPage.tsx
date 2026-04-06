@@ -1,18 +1,22 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2, MoreHorizontal, SearchX } from "lucide-react";
 import { api } from "@/api/client";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  Badge,
-  Button,
-  Card,
-  DataTable,
-  Input,
-  Label,
-  Modal,
-  Select
-} from "@/components/ui";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatMoney } from "@/lib/utils";
 import {
   Account,
@@ -36,6 +40,8 @@ type DateRangePreset =
   | "last_6_months"
   | "last_12_months"
   | "custom";
+
+const labelClass = "mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground";
 
 function toDateInputValue(value: Date) {
   const y = value.getFullYear();
@@ -106,7 +112,7 @@ function ExpenseBars({ title, rows }: { title: string; rows: { label: string; to
   const max = rows.length ? Math.max(...rows.map((row) => Number(row.total_expense))) : 0;
 
   return (
-    <Card>
+    <Card className="p-5">
       <h3 className="mb-3 text-base font-semibold">{title}</h3>
       <div className="space-y-2">
         {rows.length === 0 ? <p className="text-sm text-muted-foreground">No expenses for selected filters.</p> : null}
@@ -134,7 +140,7 @@ function TagTrendBars({ rows }: { rows: { month: string; total_expense: string }
   const max = rows.length ? Math.max(...rows.map((row) => Number(row.total_expense))) : 0;
 
   return (
-    <Card>
+    <Card className="p-5">
       <h3 className="mb-3 text-base font-semibold">Selected tag expense trend (last 12 months)</h3>
       <div className="space-y-2">
         {rows.length === 0 ? <p className="text-sm text-muted-foreground">Select a tag to see trend.</p> : null}
@@ -311,6 +317,7 @@ export function TransactionsPage() {
 
   const transactions = txResponse?.items ?? [];
   const isTransactionsEmpty = !isTransactionsLoading && transactions.length === 0;
+
   const saveTx = useMutation({
     mutationFn: async () => {
       const payload = {
@@ -411,21 +418,6 @@ export function TransactionsPage() {
       invalidateTransactionQueries(qc);
     }
   });
-
-  const handleCreate = (e: FormEvent) => {
-    e.preventDefault();
-    saveTx.mutate();
-  };
-
-  const handlePreviewUpload = (e: FormEvent) => {
-    e.preventDefault();
-    previewUpload.mutate();
-  };
-
-  const handleImport = (e: FormEvent) => {
-    e.preventDefault();
-    upload.mutate();
-  };
 
   const confirmDeleteTransaction = () => {
     if (!transactionToDelete || transactionToDelete.id <= 0) return;
@@ -571,7 +563,7 @@ export function TransactionsPage() {
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card className="p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Filters</h2>
           <div className="flex flex-wrap gap-2">
@@ -596,16 +588,21 @@ export function TransactionsPage() {
         </div>
         <div className="grid gap-3 md:grid-cols-6">
           <div>
-            <Label>Date range</Label>
-            <Select value={datePreset} onChange={(e) => onDatePresetChange(e.target.value as DateRangePreset)}>
-              <option value="this_month">This month</option>
-              <option value="last_month">Last month</option>
-              <option value="this_year">This year</option>
-              <option value="last_year">Last year</option>
-              <option value="last_3_months">Last 3 months</option>
-              <option value="last_6_months">Last 6 months</option>
-              <option value="last_12_months">Last 12 months</option>
-              <option value="custom">Custom</option>
+            <Label className={labelClass}>Date range</Label>
+            <Select value={datePreset} onValueChange={(v) => onDatePresetChange(v as DateRangePreset)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="this_month">This month</SelectItem>
+                <SelectItem value="last_month">Last month</SelectItem>
+                <SelectItem value="this_year">This year</SelectItem>
+                <SelectItem value="last_year">Last year</SelectItem>
+                <SelectItem value="last_3_months">Last 3 months</SelectItem>
+                <SelectItem value="last_6_months">Last 6 months</SelectItem>
+                <SelectItem value="last_12_months">Last 12 months</SelectItem>
+                <SelectItem value="custom">Custom</SelectItem>
+              </SelectContent>
             </Select>
             <div className="mt-2 flex gap-2">
               <Button variant="outline" type="button" onClick={() => shiftDateRangeByMonths(-1)}>
@@ -617,7 +614,7 @@ export function TransactionsPage() {
             </div>
           </div>
           <div>
-            <Label>From</Label>
+            <Label className={labelClass}>From</Label>
             <Input
               type="date"
               value={dateFrom}
@@ -628,7 +625,7 @@ export function TransactionsPage() {
             />
           </div>
           <div>
-            <Label>To</Label>
+            <Label className={labelClass}>To</Label>
             <Input
               type="date"
               value={dateTo}
@@ -639,38 +636,48 @@ export function TransactionsPage() {
             />
           </div>
           <div>
-            <Label>Account</Label>
-            <Select value={accountFilter} onChange={(e) => onFilterChange(setAccountFilter, e.target.value)}>
-              <option value="">All accounts</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
+            <Label className={labelClass}>Account</Label>
+            <Select value={accountFilter || "__all__"} onValueChange={(v) => onFilterChange(setAccountFilter, v === "__all__" ? "" : v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="All accounts" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All accounts</SelectItem>
+                {accounts.map((account) => (
+                  <SelectItem key={account.id} value={String(account.id)}>
+                    {account.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Tag</Label>
-            <Select value={tagFilter} onChange={(e) => onFilterChange(setTagFilter, e.target.value)}>
-              <option value="">All tags</option>
-              {tags.map((tag) => (
-                <option key={tag.id} value={tag.id}>{tag.label}</option>
-              ))}
+            <Label className={labelClass}>Tag</Label>
+            <Select value={tagFilter || "__all__"} onValueChange={(v) => onFilterChange(setTagFilter, v === "__all__" ? "" : v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="All tags" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All tags</SelectItem>
+                {tags.map((tag) => (
+                  <SelectItem key={tag.id} value={String(tag.id)}>{tag.label}</SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
         </div>
       </Card>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card className="p-5">
           <h3 className="text-sm uppercase tracking-wide text-muted-foreground">Income</h3>
           <p className="mt-2 text-2xl font-semibold">{formatMoney(monthlySummary?.overall.income ?? 0)}</p>
         </Card>
-        <Card>
+        <Card className="p-5">
           <h3 className="text-sm uppercase tracking-wide text-muted-foreground">Expenses</h3>
           <p className="mt-2 text-2xl font-semibold">{formatMoney(monthlySummary?.overall.expenses ?? 0)}</p>
         </Card>
-        <Card>
+        <Card className="p-5">
           <h3 className="text-sm uppercase tracking-wide text-muted-foreground">Net</h3>
           <p className="mt-2 text-2xl font-semibold">{formatMoney(monthlySummary?.overall.net ?? 0)}</p>
         </Card>
@@ -679,20 +686,25 @@ export function TransactionsPage() {
       <div className="grid gap-4 md:grid-cols-2">
         <ExpenseBars title="Monthly expenses by tag" rows={analytics?.by_tag ?? []} />
         <div className="space-y-3">
-          <Card>
-            <Label>Trend tag</Label>
-            <Select value={trendTagId} onChange={(e) => setTrendTagId(e.target.value)}>
-              <option value="">Select tag</option>
-              {tags.map((tag) => (
-                <option key={tag.id} value={tag.id}>{tag.label}</option>
-              ))}
+          <Card className="p-5">
+            <Label className={labelClass}>Trend tag</Label>
+            <Select value={trendTagId || "__none__"} onValueChange={(v) => setTrendTagId(v === "__none__" ? "" : v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select tag" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Select tag</SelectItem>
+                {tags.map((tag) => (
+                  <SelectItem key={tag.id} value={String(tag.id)}>{tag.label}</SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </Card>
           <TagTrendBars rows={trendData?.points ?? []} />
         </div>
       </div>
 
-      <Card>
+      <Card className="p-5">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Transactions</h2>
@@ -700,7 +712,7 @@ export function TransactionsPage() {
           </div>
           <div className="w-full md:w-[32rem]">
             <div>
-              <Label>Search text</Label>
+              <Label className={labelClass}>Search text</Label>
               <Input
                 value={textFilter}
                 onChange={(e) => {
@@ -713,46 +725,46 @@ export function TransactionsPage() {
           </div>
         </div>
 
-        <DataTable>
-          <table className="min-w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-muted text-left text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2">Date</th>
-                <th className="px-3 py-2">Description</th>
-                <th className="px-3 py-2">Account</th>
-                <th className="px-3 py-2 text-right">Amount</th>
-                <th className="px-3 py-2">Currency</th>
-                <th className="px-3 py-2">Tag</th>
-                <th className="px-3 py-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="overflow-x-auto rounded-lg border border-border bg-background">
+          <Table>
+            <TableHeader>
+              <TableRow className="sticky top-0 z-10 bg-muted hover:bg-muted">
+                <TableHead className="px-3 py-2">Date</TableHead>
+                <TableHead className="px-3 py-2">Description</TableHead>
+                <TableHead className="px-3 py-2">Account</TableHead>
+                <TableHead className="px-3 py-2 text-right">Amount</TableHead>
+                <TableHead className="px-3 py-2">Currency</TableHead>
+                <TableHead className="px-3 py-2">Tag</TableHead>
+                <TableHead className="px-3 py-2">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {isTransactionsLoading ? (
                 Array.from({ length: 8 }).map((_, index) => (
-                  <tr key={`loading-${index}`} className="border-t border-border">
-                    <td className="px-3 py-2"><div className="h-4 w-20 animate-pulse rounded bg-muted" /></td>
-                    <td className="px-3 py-2"><div className="h-4 w-48 animate-pulse rounded bg-muted" /></td>
-                    <td className="px-3 py-2"><div className="h-4 w-24 animate-pulse rounded bg-muted" /></td>
-                    <td className="px-3 py-2"><div className="ml-auto h-4 w-20 animate-pulse rounded bg-muted" /></td>
-                    <td className="px-3 py-2"><div className="h-4 w-12 animate-pulse rounded bg-muted" /></td>
-                    <td className="px-3 py-2"><div className="h-4 w-16 animate-pulse rounded bg-muted" /></td>
-                    <td className="px-3 py-2"><div className="h-8 w-8 animate-pulse rounded bg-muted" /></td>
-                  </tr>
+                  <TableRow key={`loading-${index}`} className="border-t border-border">
+                    <TableCell className="px-3 py-2"><div className="h-4 w-20 animate-pulse rounded bg-muted" /></TableCell>
+                    <TableCell className="px-3 py-2"><div className="h-4 w-48 animate-pulse rounded bg-muted" /></TableCell>
+                    <TableCell className="px-3 py-2"><div className="h-4 w-24 animate-pulse rounded bg-muted" /></TableCell>
+                    <TableCell className="px-3 py-2"><div className="ml-auto h-4 w-20 animate-pulse rounded bg-muted" /></TableCell>
+                    <TableCell className="px-3 py-2"><div className="h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
+                    <TableCell className="px-3 py-2"><div className="h-4 w-16 animate-pulse rounded bg-muted" /></TableCell>
+                    <TableCell className="px-3 py-2"><div className="h-8 w-8 animate-pulse rounded bg-muted" /></TableCell>
+                  </TableRow>
                 ))
               ) : null}
 
               {transactions.map((tx, index) => (
-                <tr
+                <TableRow
                   key={tx.id}
                   className={`border-t border-border transition-colors hover:bg-muted/60 ${index % 2 === 0 ? "bg-background" : "bg-muted/20"} ${tx.parent_transaction_id ? "bg-muted/50" : ""}`}
                 >
-                  <td className="px-3 py-2">{tx.date}</td>
-                  <td className="px-3 py-2">{tx.description}</td>
-                  <td className="px-3 py-2">{accounts.find((a) => a.id === tx.account_id)?.name ?? "-"}</td>
-                  <td className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(tx.amount)}</td>
-                  <td className="px-3 py-2">{tx.currency}</td>
-                  <td className="px-3 py-2">{tx.is_transfer ? "-" : (tags.find((t) => t.id === tx.tag_id)?.label ?? "-")}</td>
-                  <td className="px-3 py-2">
+                  <TableCell className="px-3 py-2">{tx.date}</TableCell>
+                  <TableCell className="px-3 py-2">{tx.description}</TableCell>
+                  <TableCell className="px-3 py-2">{accounts.find((a) => a.id === tx.account_id)?.name ?? "-"}</TableCell>
+                  <TableCell className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(tx.amount)}</TableCell>
+                  <TableCell className="px-3 py-2">{tx.currency}</TableCell>
+                  <TableCell className="px-3 py-2">{tx.is_transfer ? "-" : (tags.find((t) => t.id === tx.tag_id)?.label ?? "-")}</TableCell>
+                  <TableCell className="px-3 py-2">
                     <div className="relative inline-block" data-actions-menu-root="true">
                       <Button
                         variant="outline"
@@ -819,13 +831,13 @@ export function TransactionsPage() {
                         </div>
                       ) : null}
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
 
               {isTransactionsEmpty ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12">
+                <TableRow>
+                  <TableCell colSpan={7} className="px-6 py-12">
                     <div className="flex flex-col items-center justify-center gap-3 text-center">
                       <SearchX className="h-6 w-6 text-muted-foreground" />
                       <div>
@@ -834,12 +846,12 @@ export function TransactionsPage() {
                       </div>
                       <Button variant="outline" onClick={clearFilters}>Clear filters</Button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : null}
-            </tbody>
-          </table>
-        </DataTable>
+            </TableBody>
+          </Table>
+        </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
           <p className="text-muted-foreground">
@@ -858,14 +870,19 @@ export function TransactionsPage() {
               <div className="w-20">
                 <Select
                   value={String(pageSize)}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
+                  onValueChange={(v) => {
+                    setPageSize(Number(v));
                     setPage(1);
                   }}
                 >
-                  <option value="10">10</option>
-                  <option value="20">20</option>
-                  <option value="50">50</option>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
             </div>
@@ -886,299 +903,356 @@ export function TransactionsPage() {
         </div>
       </Card>
 
-      <Modal
-        open={Boolean(transactionToDelete)}
-        title="Delete transaction"
-        onClose={() => setTransactionToDelete(null)}
-      >
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete this transaction?
-          </p>
-          <p className="text-sm">
-            <span className="font-semibold">{transactionToDelete?.date}</span>
-            {" - "}
-            <span className="font-semibold">{transactionToDelete?.description}</span>
-            {" - "}
-            <span className="font-semibold">
-              {formatMoney(transactionToDelete?.amount)} {transactionToDelete?.currency}
-            </span>
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setTransactionToDelete(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmDeleteTransaction} disabled={deleteTx.isPending}>
-              {deleteTx.isPending ? "Deleting..." : "Delete transaction"}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal
-        open={isTransactionModalOpen}
-        title={editing ? "Edit transaction" : "Add transaction"}
-        onClose={() => {
-          setIsTransactionModalOpen(false);
-          clearTransactionForm();
-        }}
-      >
-        <form onSubmit={handleCreate} className="space-y-3">
-          <div>
-            <Label>Account</Label>
-            <Select value={accountId} onChange={(e) => onAccountChange(e.target.value)} required>
-              <option value="">Select account</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label>Date</Label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-          </div>
-          <div className="flex items-center gap-2 rounded-lg border border-border p-3">
-            <input
-              id="is_transfer"
-              type="checkbox"
-              checked={isTransfer}
-              onChange={(e) => setIsTransfer(e.target.checked)}
-            />
-            <Label>Account transfer</Label>
-          </div>
-          <div>
-            <Label>Description</Label>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} required />
-          </div>
-          <div>
-            <Label>Amount</Label>
-            <Input value={amount} onChange={(e) => setAmount(e.target.value)} required />
-          </div>
-          <div>
-            <Label>Currency</Label>
-            <Select value={currency} onChange={(e) => setCurrency(e.target.value)} required>
-              {CURRENCIES.map((curr) => (
-                <option key={curr} value={curr}>{curr}</option>
-              ))}
-            </Select>
-          </div>
-          {isTransfer ? (
-            <div>
-              <Label>Destination account</Label>
-              <Select value={destinationAccountId} onChange={(e) => setDestinationAccountId(e.target.value)} required>
-                <option value="">Select destination</option>
-                {accounts
-                  .filter((a) => String(a.id) !== accountId)
-                  .map((a) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-              </Select>
-            </div>
-          ) : (
-            <div>
-              <Label>Tag</Label>
-              <Select value={createTagId} onChange={(e) => setCreateTagId(e.target.value)}>
-                <option value="">No tag</option>
-                {tags.map((tag) => (
-                  <option key={tag.id} value={tag.id}>{tag.label}</option>
-                ))}
-              </Select>
-            </div>
-          )}
-          <Button type="submit" className="w-full">{editing ? "Update" : "Save"}</Button>
-        </form>
-      </Modal>
-
-      <Modal
-        open={isImportModalOpen}
-        title="Import CSV / XLSX"
-        onClose={() => {
-          setIsImportModalOpen(false);
-          resetImportForm();
-        }}
-      >
-        <div className="mb-3">
-          <Button variant="outline" onClick={downloadTemplate}>Download CSV template</Button>
-        </div>
-
-        <form onSubmit={handlePreviewUpload} className="space-y-3">
-          <div>
-            <Label>Account</Label>
-            <Select
-              value={uploadAccountId}
-              onChange={(e) => {
-                setUploadAccountId(e.target.value);
-                setImportPreview(null);
-                setImportResult("");
-              }}
-              required
-            >
-              <option value="">Select account</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label>Default tag (optional)</Label>
-            <Select
-              value={uploadTagId}
-              onChange={(e) => {
-                setUploadTagId(e.target.value);
-                setImportPreview(null);
-                setImportResult("");
-              }}
-            >
-              <option value="">No default tag</option>
-              {tags.map((tag) => (
-                <option key={tag.id} value={tag.id}>{tag.label}</option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label>File</Label>
-            <Input
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              onChange={(e) => {
-                setFile(e.target.files?.[0] ?? null);
-                setImportPreview(null);
-                setImportResult("");
-              }}
-              required
-            />
-          </div>
-          <Button type="submit" className="w-full">Preview import</Button>
-        </form>
-
-        {importPreview ? (
-          <div className="mt-4 space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge>Total: {importPreview.total_rows}</Badge>
-              <Badge>Valid: {importPreview.valid_rows}</Badge>
-              <Badge>Invalid: {importPreview.invalid_rows}</Badge>
-            </div>
-
-            <DataTable>
-              <table className="min-w-full text-xs">
-                <thead className="bg-muted text-left text-muted-foreground">
-                  <tr>
-                    <th className="px-2 py-1">Row</th>
-                    <th className="px-2 py-1">Date</th>
-                    <th className="px-2 py-1">Description</th>
-                    <th className="px-2 py-1">Amount</th>
-                    <th className="px-2 py-1">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {importPreview.preview.map((row) => (
-                    <tr key={`${row.row}-${row.description}`} className="border-t border-border">
-                      <td className="px-2 py-1">{row.row}</td>
-                      <td className="px-2 py-1">{row.date}</td>
-                      <td className="px-2 py-1">{row.description}</td>
-                      <td className="px-2 py-1">{formatMoney(row.amount)}</td>
-                      <td className="px-2 py-1">{row.status === "ok" ? "OK" : row.message}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </DataTable>
-
-            {importPreview.errors.length > 0 ? (
-              <div className="rounded-lg border border-border bg-muted p-3 text-xs text-foreground">
-                <p className="font-semibold">Validation errors</p>
-                {importPreview.errors.slice(0, 5).map((error) => (
-                  <p key={`${error.row}-${error.message}`}>Row {error.row}: {error.message}</p>
-                ))}
-              </div>
-            ) : null}
-
-            <form onSubmit={handleImport}>
-              <Button type="submit" className="w-full" disabled={importPreview.valid_rows === 0}>
-                Confirm import
-              </Button>
-            </form>
-          </div>
-        ) : null}
-
-        {importResult ? <p className="mt-3 text-sm text-muted-foreground">{importResult}</p> : null}
-        <p className="mt-3 text-xs text-muted-foreground">Required columns: date, description, amount, currency. Optional: tag_id.</p>
-      </Modal>
-
-      <Modal
-        open={isSplitModalOpen}
-        title="Split transaction"
-        onClose={() => {
-          setIsSplitModalOpen(false);
-          setSplitParent(null);
-          setSplitRows([]);
-          setSplitResult("");
-        }}
-      >
-        {splitParent ? (
+      {/* Delete transaction dialog */}
+      <Dialog open={Boolean(transactionToDelete)} onOpenChange={(open) => { if (!open) setTransactionToDelete(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete transaction</DialogTitle>
+          </DialogHeader>
           <div className="space-y-3">
-            <Card>
-              <p className="text-sm font-semibold">Original transaction</p>
-              <p className="text-sm text-muted-foreground">{splitParent.date} - {splitParent.description}</p>
-              <p className="text-sm text-muted-foreground">
-                Amount: {formatMoney(splitParent.amount)} {splitParent.currency}
-              </p>
-            </Card>
-
-            <DataTable>
-              <table className="min-w-full text-sm">
-                <thead className="bg-muted text-left text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2">Description</th>
-                    <th className="px-3 py-2">Amount</th>
-                    <th className="px-3 py-2">Tag (optional)</th>
-                    <th className="px-3 py-2">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {splitRows.map((row, index) => (
-                    <tr key={`${row.id ?? "new"}-${index}`} className="border-t border-border">
-                      <td className="px-3 py-2">
-                        <Input
-                          value={row.description}
-                          onChange={(e) => updateSplitRow(index, "description", e.target.value)}
-                          placeholder="Description"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <Input
-                          value={row.amount}
-                          onChange={(e) => updateSplitRow(index, "amount", e.target.value)}
-                          placeholder="0.00"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <Select value={row.tag_id} onChange={(e) => updateSplitRow(index, "tag_id", e.target.value)}>
-                          <option value="">No tag</option>
-                          {tags.map((tag) => (
-                            <option key={tag.id} value={tag.id}>{tag.label}</option>
-                          ))}
-                        </Select>
-                      </td>
-                      <td className="px-3 py-2">
-                        <Button variant="destructive" onClick={() => removeSplitRow(index)}>Remove</Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </DataTable>
-
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <Button variant="outline" onClick={addSplitRow}>Add row</Button>
-              <p className="text-sm text-muted-foreground">Missing Spllited Transactions: {formatMoney(splitRemaining)}</p>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete this transaction?
+            </p>
+            <p className="text-sm">
+              <span className="font-semibold">{transactionToDelete?.date}</span>
+              {" - "}
+              <span className="font-semibold">{transactionToDelete?.description}</span>
+              {" - "}
+              <span className="font-semibold">
+                {formatMoney(transactionToDelete?.amount)} {transactionToDelete?.currency}
+              </span>
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setTransactionToDelete(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={confirmDeleteTransaction} disabled={deleteTx.isPending}>
+                {deleteTx.isPending ? "Deleting..." : "Delete transaction"}
+              </Button>
             </div>
-
-            <Button className="w-full" onClick={() => saveSplits.mutate()}>
-              Save splitted transactions
-            </Button>
-            {splitResult ? <p className="text-sm text-muted-foreground">{splitResult}</p> : null}
           </div>
-        ) : null}
-      </Modal>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add / Edit transaction dialog */}
+      <Dialog
+        open={isTransactionModalOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsTransactionModalOpen(false);
+            clearTransactionForm();
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit transaction" : "Add transaction"}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={(e) => { e.preventDefault(); saveTx.mutate(); }} className="space-y-3">
+            <div>
+              <Label className={labelClass}>Account</Label>
+              <Select value={accountId} onValueChange={onAccountChange} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((a) => (
+                    <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className={labelClass}>Date</Label>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border border-border p-3">
+              <input
+                id="is_transfer"
+                type="checkbox"
+                checked={isTransfer}
+                onChange={(e) => setIsTransfer(e.target.checked)}
+              />
+              <Label className={labelClass}>Account transfer</Label>
+            </div>
+            <div>
+              <Label className={labelClass}>Description</Label>
+              <Input value={description} onChange={(e) => setDescription(e.target.value)} required />
+            </div>
+            <div>
+              <Label className={labelClass}>Amount</Label>
+              <Input value={amount} onChange={(e) => setAmount(e.target.value)} required />
+            </div>
+            <div>
+              <Label className={labelClass}>Currency</Label>
+              <Select value={currency} onValueChange={setCurrency} required>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CURRENCIES.map((curr) => (
+                    <SelectItem key={curr} value={curr}>{curr}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {isTransfer ? (
+              <div>
+                <Label className={labelClass}>Destination account</Label>
+                <Select value={destinationAccountId} onValueChange={setDestinationAccountId} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select destination" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts
+                      .filter((a) => String(a.id) !== accountId)
+                      .map((a) => (
+                        <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div>
+                <Label className={labelClass}>Tag</Label>
+                <Select value={createTagId || "__none__"} onValueChange={(v) => setCreateTagId(v === "__none__" ? "" : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="No tag" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No tag</SelectItem>
+                    {tags.map((tag) => (
+                      <SelectItem key={tag.id} value={String(tag.id)}>{tag.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <Button type="submit" className="w-full">{editing ? "Update" : "Save"}</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import CSV / XLSX dialog */}
+      <Dialog
+        open={isImportModalOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsImportModalOpen(false);
+            resetImportForm();
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Import CSV / XLSX</DialogTitle>
+          </DialogHeader>
+          <div className="mb-3">
+            <Button variant="outline" onClick={downloadTemplate}>Download CSV template</Button>
+          </div>
+
+          <form onSubmit={(e) => { e.preventDefault(); previewUpload.mutate(); }} className="space-y-3">
+            <div>
+              <Label className={labelClass}>Account</Label>
+              <Select
+                value={uploadAccountId}
+                onValueChange={(v) => {
+                  setUploadAccountId(v);
+                  setImportPreview(null);
+                  setImportResult("");
+                }}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((a) => (
+                    <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className={labelClass}>Default tag (optional)</Label>
+              <Select
+                value={uploadTagId || "__none__"}
+                onValueChange={(v) => {
+                  setUploadTagId(v === "__none__" ? "" : v);
+                  setImportPreview(null);
+                  setImportResult("");
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="No default tag" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No default tag</SelectItem>
+                  {tags.map((tag) => (
+                    <SelectItem key={tag.id} value={String(tag.id)}>{tag.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className={labelClass}>File</Label>
+              <Input
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={(e) => {
+                  setFile(e.target.files?.[0] ?? null);
+                  setImportPreview(null);
+                  setImportResult("");
+                }}
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full">Preview import</Button>
+          </form>
+
+          {importPreview ? (
+            <div className="mt-4 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">Total: {importPreview.total_rows}</Badge>
+                <Badge variant="secondary">Valid: {importPreview.valid_rows}</Badge>
+                <Badge variant="secondary">Invalid: {importPreview.invalid_rows}</Badge>
+              </div>
+
+              <div className="overflow-x-auto rounded-lg border border-border bg-background">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted hover:bg-muted">
+                      <TableHead className="px-2 py-1">Row</TableHead>
+                      <TableHead className="px-2 py-1">Date</TableHead>
+                      <TableHead className="px-2 py-1">Description</TableHead>
+                      <TableHead className="px-2 py-1">Amount</TableHead>
+                      <TableHead className="px-2 py-1">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {importPreview.preview.map((row) => (
+                      <TableRow key={`${row.row}-${row.description}`} className="border-t border-border">
+                        <TableCell className="px-2 py-1">{row.row}</TableCell>
+                        <TableCell className="px-2 py-1">{row.date}</TableCell>
+                        <TableCell className="px-2 py-1">{row.description}</TableCell>
+                        <TableCell className="px-2 py-1">{formatMoney(row.amount)}</TableCell>
+                        <TableCell className="px-2 py-1">{row.status === "ok" ? "OK" : row.message}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {importPreview.errors.length > 0 ? (
+                <div className="rounded-lg border border-border bg-muted p-3 text-xs text-foreground">
+                  <p className="font-semibold">Validation errors</p>
+                  {importPreview.errors.slice(0, 5).map((error) => (
+                    <p key={`${error.row}-${error.message}`}>Row {error.row}: {error.message}</p>
+                  ))}
+                </div>
+              ) : null}
+
+              <form onSubmit={(e) => { e.preventDefault(); upload.mutate(); }}>
+                <Button type="submit" className="w-full" disabled={importPreview.valid_rows === 0}>
+                  Confirm import
+                </Button>
+              </form>
+            </div>
+          ) : null}
+
+          {importResult ? <p className="mt-3 text-sm text-muted-foreground">{importResult}</p> : null}
+          <p className="mt-3 text-xs text-muted-foreground">Required columns: date, description, amount, currency. Optional: tag_id.</p>
+        </DialogContent>
+      </Dialog>
+
+      {/* Split transaction dialog */}
+      <Dialog
+        open={isSplitModalOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsSplitModalOpen(false);
+            setSplitParent(null);
+            setSplitRows([]);
+            setSplitResult("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Split transaction</DialogTitle>
+          </DialogHeader>
+          {splitParent ? (
+            <div className="space-y-3">
+              <Card className="p-5">
+                <p className="text-sm font-semibold">Original transaction</p>
+                <p className="text-sm text-muted-foreground">{splitParent.date} - {splitParent.description}</p>
+                <p className="text-sm text-muted-foreground">
+                  Amount: {formatMoney(splitParent.amount)} {splitParent.currency}
+                </p>
+              </Card>
+
+              <div className="overflow-x-auto rounded-lg border border-border bg-background">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted hover:bg-muted">
+                      <TableHead className="px-3 py-2">Description</TableHead>
+                      <TableHead className="px-3 py-2">Amount</TableHead>
+                      <TableHead className="px-3 py-2">Tag (optional)</TableHead>
+                      <TableHead className="px-3 py-2">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {splitRows.map((row, index) => (
+                      <TableRow key={`${row.id ?? "new"}-${index}`} className="border-t border-border">
+                        <TableCell className="px-3 py-2">
+                          <Input
+                            value={row.description}
+                            onChange={(e) => updateSplitRow(index, "description", e.target.value)}
+                            placeholder="Description"
+                          />
+                        </TableCell>
+                        <TableCell className="px-3 py-2">
+                          <Input
+                            value={row.amount}
+                            onChange={(e) => updateSplitRow(index, "amount", e.target.value)}
+                            placeholder="0.00"
+                          />
+                        </TableCell>
+                        <TableCell className="px-3 py-2">
+                          <Select value={row.tag_id || "__none__"} onValueChange={(v) => updateSplitRow(index, "tag_id", v === "__none__" ? "" : v)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="No tag" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">No tag</SelectItem>
+                              {tags.map((tag) => (
+                                <SelectItem key={tag.id} value={String(tag.id)}>
+                                  {tag.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="px-3 py-2">
+                          <Button variant="destructive" onClick={() => removeSplitRow(index)}>Remove</Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Button variant="outline" onClick={addSplitRow}>Add row</Button>
+                <p className="text-sm text-muted-foreground">Missing Spllited Transactions: {formatMoney(splitRemaining)}</p>
+              </div>
+
+              <Button className="w-full" onClick={() => saveSplits.mutate()}>
+                Save splitted transactions
+              </Button>
+              {splitResult ? <p className="text-sm text-muted-foreground">{splitResult}</p> : null}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

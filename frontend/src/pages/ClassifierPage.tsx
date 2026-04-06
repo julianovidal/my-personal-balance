@@ -2,7 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { classifierApi } from "@/api/classifierClient";
-import { Button, Card, DataTable, Label, Select } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatMoney } from "@/lib/utils";
 import {
   Account,
@@ -136,7 +146,7 @@ export function ClassifierPage() {
 
   return (
     <div className="space-y-4">
-      <Card className="space-y-4">
+      <Card className="space-y-4 p-5">
         <div>
           <h2 className="text-xl font-semibold">Classifier</h2>
           <p className="text-sm text-muted-foreground">
@@ -146,13 +156,18 @@ export function ClassifierPage() {
 
         <div className="grid gap-4 md:grid-cols-3">
           <div>
-            <Label>Account</Label>
-            <Select value={accountId} onChange={(event) => setAccountId(event.target.value)}>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
+            <Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Account</Label>
+            <Select value={accountId} onValueChange={setAccountId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select account" />
+              </SelectTrigger>
+              <SelectContent>
+                {accounts.map((account) => (
+                  <SelectItem key={account.id} value={String(account.id)}>
+                    {account.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
 
@@ -175,7 +190,7 @@ export function ClassifierPage() {
         {modelStatus ? <p className="text-sm">{modelStatus}</p> : null}
       </Card>
 
-      <Card>
+      <Card className="p-5">
         <h3 className="mb-3 text-base font-semibold">
           Untagged transactions {accountName ? `for ${accountName}` : ""}
         </h3>
@@ -185,62 +200,66 @@ export function ClassifierPage() {
         ) : null}
 
         {hasTransactions ? (
-          <DataTable>
-            <table className="min-w-full text-sm">
-              <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">Date</th>
-                  <th className="px-3 py-2">Description</th>
-                  <th className="px-3 py-2 text-right">Amount</th>
-                  <th className="px-3 py-2">Prediction</th>
-                  <th className="px-3 py-2">Tag</th>
-                  <th className="px-3 py-2 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="overflow-x-auto rounded-lg border border-border bg-background">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted text-left hover:bg-muted">
+                  <TableHead className="px-3 py-2 text-xs uppercase tracking-wide">Date</TableHead>
+                  <TableHead className="px-3 py-2 text-xs uppercase tracking-wide">Description</TableHead>
+                  <TableHead className="px-3 py-2 text-right text-xs uppercase tracking-wide">Amount</TableHead>
+                  <TableHead className="px-3 py-2 text-xs uppercase tracking-wide">Prediction</TableHead>
+                  <TableHead className="px-3 py-2 text-xs uppercase tracking-wide">Tag</TableHead>
+                  <TableHead className="px-3 py-2 text-right text-xs uppercase tracking-wide">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {transactions.map((tx) => {
                   const prediction = predictionByTx[tx.id];
                   const selectedTag = selectedTags[tx.id] ?? "";
                   return (
-                    <tr key={tx.id} className="border-t border-border">
-                      <td className="px-3 py-2">{tx.date}</td>
-                      <td className="px-3 py-2">{tx.description}</td>
-                      <td className="px-3 py-2 text-right">{formatMoney(Number(tx.amount))}</td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">
+                    <TableRow key={tx.id} className="border-t border-border">
+                      <TableCell className="px-3 py-2">{tx.date}</TableCell>
+                      <TableCell className="px-3 py-2">{tx.description}</TableCell>
+                      <TableCell className="px-3 py-2 text-right">{formatMoney(Number(tx.amount))}</TableCell>
+                      <TableCell className="px-3 py-2 text-xs text-muted-foreground">
                         {prediction
                           ? `${tags.find((tag) => tag.id === prediction.suggested_tag_id)?.label ?? prediction.suggested_tag_id} (${Math.round(prediction.confidence * 100)}%)`
                           : "-"}
-                      </td>
-                      <td className="px-3 py-2">
+                      </TableCell>
+                      <TableCell className="px-3 py-2">
                         <Select
-                          value={selectedTag}
-                          onChange={(event) => {
-                            const value = event.target.value;
-                            setSelectedTags((prev) => ({ ...prev, [tx.id]: value }));
+                          value={selectedTag || "__none__"}
+                          onValueChange={(value) => {
+                            setSelectedTags((prev) => ({ ...prev, [tx.id]: value === "__none__" ? "" : value }));
                           }}
                         >
-                          <option value="">Select tag</option>
-                          {tags.map((tag) => (
-                            <option key={tag.id} value={tag.id}>
-                              {tag.label}
-                            </option>
-                          ))}
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select tag" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">Select tag</SelectItem>
+                            {tags.map((tag) => (
+                              <SelectItem key={tag.id} value={String(tag.id)}>
+                                {tag.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
                         </Select>
-                      </td>
-                      <td className="px-3 py-2 text-right">
+                      </TableCell>
+                      <TableCell className="px-3 py-2 text-right">
                         <Button
                           disabled={!selectedTag || applyTagMutation.isPending}
                           onClick={() => applyTagMutation.mutate(tx)}
                         >
                           Apply
                         </Button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
-          </DataTable>
+              </TableBody>
+            </Table>
+          </div>
         ) : null}
       </Card>
     </div>
