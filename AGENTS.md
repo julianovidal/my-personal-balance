@@ -52,3 +52,15 @@ Apps:
 - Backend docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 - Classifier health: [http://localhost:8001/health](http://localhost:8001/health)
 - Health: [http://localhost:8000/health](http://localhost:8000/health)
+
+## Active Technologies
+
+- Python 3.12 (both backend and classifier)
+- PostgreSQL 16
+- Node.js 22 (via `node:22-alpine` Docker image); TypeScript 5.9 + pnpm (latest stable via `corepack enable pnpm`); React 19, Vite 8, Tailwind 3, TanStack Query 5
+
+## Recent Changes
+
+- 001-migrate-python-uv: Added Python 3.12 (both backend and classifier)
+- 002-frontend-pnpm-migration: Migrated frontend package manager to pnpm
+- 003-react19-vite8-migration: Migrated frontend from React 18 + Vite 7 to React 19 + Vite 8; TypeScript 5.9 / Node.js 22 + React 19.2.4, Vite 8.0.3, @vitejs/plugin-react 6.0.1, pnpm 10
