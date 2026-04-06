@@ -1,20 +1,19 @@
 <!--
 Sync Impact Report
 ==================
-Version change: [unversioned template] → 1.0.0
-Modified principles: N/A — initial ratification, all principles are new
-Added sections:
-  - Core Principles (I. Code Quality, II. Testing Standards,
-    III. User Experience Consistency, IV. Performance Requirements)
-  - Technology Constraints
-  - Development Workflow
-  - Governance
+Version change: 1.0.0 → 1.0.1
+Modified principles: N/A
+Added sections: N/A
 Removed sections: N/A
+Amendment summary:
+  - §Technology Constraints: replaced `package-lock.json` with `pnpm-lock.yaml`;
+    added pnpm as the designated Node package manager for the frontend service.
 Templates reviewed:
-  - .specify/templates/plan-template.md   ✅ Constitution Check gates derivable from all four principles
-  - .specify/templates/spec-template.md   ✅ FR/SC format and UX consistency requirements align
-  - .specify/templates/tasks-template.md  ✅ Test-first task ordering aligns with Principle II
-  - .specify/templates/constitution-template.md ✅ Source template; no update needed
+  - .specify/templates/plan-template.md   ✅ No lockfile references; Constitution Check gates unaffected
+  - .specify/templates/spec-template.md   ✅ No lockfile references; unaffected
+  - .specify/templates/tasks-template.md  ✅ No lockfile references; unaffected
+  - .specify/templates/agent-file-template.md ✅ No lockfile references; unaffected
+  - README.md                             ✅ No lockfile references; unaffected
 Deferred TODOs: None
 -->
 
@@ -108,7 +107,7 @@ The following technology stack is fixed for all services and MUST NOT be substit
 without a formal constitution amendment:
 
 | Layer | Technology |
-|---|---|
+| - | - |
 | Backend API | FastAPI + SQLAlchemy + Alembic + JWT |
 | Database | PostgreSQL |
 | Classifier | FastAPI + scikit-learn |
@@ -116,7 +115,8 @@ without a formal constitution amendment:
 | Runtime | Podman + podman-compose |
 
 - Dependencies MUST be pinned to exact versions in their respective lock files
-  (`requirements.txt` / `pyproject.toml` for Python; `package-lock.json` for Node).
+  (`pyproject.toml` / `uv.lock` for Python services; `pnpm-lock.yaml` for the
+  frontend Node service managed with **pnpm**).
 - New external dependencies MUST be evaluated for maintenance status and security
   posture before inclusion. Unmaintained or vulnerability-prone packages MUST NOT be
   added.
@@ -162,4 +162,4 @@ be completed before coding begins and re-verified after Phase 1 design.
 AGENTS.md files (`backend/AGENTS.md`, `frontend/AGENTS.md`, `classifier/AGENTS.md`)
 alongside this constitution.
 
-**Version**: 1.0.0 | **Ratified**: 2026-04-06 | **Last Amended**: 2026-04-06
+**Version**: 1.0.1 | **Ratified**: 2026-04-06 | **Last Amended**: 2026-04-06
