@@ -54,6 +54,7 @@ Apps:
 - Health: [http://localhost:8000/health](http://localhost:8000/health)
 
 ## Active Technologies
+- TypeScript 5 / Node.js 22-alpine + Vite 8, pnpm 10.33.0, React 19, shadcn/ui (Radix UI + CVA + Tailwind) (005-fix-radix-select-import)
 
 - Python 3.12 (both backend and classifier)
 - PostgreSQL 16
