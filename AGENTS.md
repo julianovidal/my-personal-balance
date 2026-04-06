@@ -23,15 +23,15 @@ A git branch should use the following pattern:
 
 ### Backend
 
-Backend specifications are based on `./backend/AGENTS.md`
+Backend specifications are based on [./backend/AGENTS.md](./backend/AGENTS.md)
 
 ### Frontent
 
-Frontend specifications are based on `./frontend/AGENTS.md`
+Frontend specifications are based on [./frontend/AGENTS.md](./frontend/AGENTS.md)
 
 ### Classifier
 
-Classifier specifications are based on `./classifier/AGENTS.md`
+Classifier specifications are based on [./classifier/AGENTS.md](./classifier/AGENTS.md)
 
 ## Run locally with Podman
 
