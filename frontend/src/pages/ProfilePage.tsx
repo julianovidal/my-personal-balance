@@ -1,11 +1,17 @@
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
-import { Button, Card, Input, Label, Modal } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { getTheme, setTheme } from "@/lib/theme";
 import { Tag } from "@/types";
+
+const labelClass = "mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground";
 
 export function ProfilePage() {
   const { user } = useAuth();
@@ -45,19 +51,14 @@ export function ProfilePage() {
     }
   });
 
-  const onTagSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    createTag.mutate();
+  const confirmDeleteTag = () => {
+    if (!tagToDelete) return;
+    removeTag.mutate(tagToDelete.id);
   };
 
   const startEditTag = (tag: Tag) => {
     setEditingTag(tag);
     setTagLabel(tag.label);
-  };
-
-  const confirmDeleteTag = () => {
-    if (!tagToDelete) return;
-    removeTag.mutate(tagToDelete.id);
   };
 
   const toggleTheme = () => {
@@ -68,7 +69,7 @@ export function ProfilePage() {
 
   return (
     <div className="space-y-4">
-      <Card className="max-w-xl">
+      <Card className="max-w-xl p-5">
         <h2 className="mb-3 text-xl font-semibold">Profile</h2>
         <dl className="space-y-2 text-sm">
           <div>
@@ -89,12 +90,15 @@ export function ProfilePage() {
         </div>
       </Card>
 
-      <Card className="max-w-3xl">
+      <Card className="max-w-3xl p-5">
         <h2 className="mb-3 text-xl font-semibold">Tags</h2>
 
-        <form className="mb-4 grid gap-3 md:grid-cols-3" onSubmit={onTagSubmit}>
+        <form
+          className="mb-4 grid gap-3 md:grid-cols-3"
+          onSubmit={(e) => { e.preventDefault(); createTag.mutate(); }}
+        >
           <div className="md:col-span-2">
-            <Label>Label</Label>
+            <Label className={labelClass}>Label</Label>
             <Input value={tagLabel} onChange={(e) => setTagLabel(e.target.value)} required />
           </div>
           <div className="flex items-end">
@@ -130,24 +134,26 @@ export function ProfilePage() {
         </div>
       </Card>
 
-      <Modal
-        open={Boolean(tagToDelete)}
-        title="Delete tag"
-        onClose={() => setTagToDelete(null)}
-      >
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete tag{" "}
-            <span className="font-semibold text-foreground">{tagToDelete?.label}</span>?
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setTagToDelete(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmDeleteTag} disabled={removeTag.isPending}>
-              {removeTag.isPending ? "Deleting..." : "Delete tag"}
-            </Button>
+      {/* Delete tag confirmation dialog */}
+      <Dialog open={Boolean(tagToDelete)} onOpenChange={(open) => { if (!open) setTagToDelete(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete tag</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete tag{" "}
+              <span className="font-semibold text-foreground">{tagToDelete?.label}</span>?
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setTagToDelete(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={confirmDeleteTag} disabled={removeTag.isPending}>
+                {removeTag.isPending ? "Deleting..." : "Delete tag"}
+              </Button>
+            </div>
           </div>
-        </div>
-      </Modal>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

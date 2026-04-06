@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 
 const links = [
   { to: "/", label: "Dashboard" },

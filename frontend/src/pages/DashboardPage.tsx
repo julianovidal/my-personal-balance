@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
-import { Badge, Card, DataTable } from "@/components/ui";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatMoney } from "@/lib/utils";
 import { DashboardChartsResponse, DashboardSummary } from "@/types";
 
@@ -160,7 +162,7 @@ export function DashboardPage() {
           <h2 className="text-sm uppercase tracking-wider text-muted-foreground">Current month</h2>
         </div>
         <div className="grid gap-4 md:grid-cols-3">
-          <Card>
+          <Card className="p-5">
             <h3 className="text-sm uppercase tracking-wide text-muted-foreground">Income</h3>
             {isLoading ? (
               <div className="mt-2 h-8 w-28 animate-pulse rounded bg-muted" />
@@ -168,7 +170,7 @@ export function DashboardPage() {
               <p className="mt-2 text-2xl font-semibold">{formatMoney(data?.current_month_income ?? 0)}</p>
             )}
           </Card>
-          <Card>
+          <Card className="p-5">
             <h3 className="text-sm uppercase tracking-wide text-muted-foreground">Expenses</h3>
             {isLoading ? (
               <div className="mt-2 h-8 w-28 animate-pulse rounded bg-muted" />
@@ -176,7 +178,7 @@ export function DashboardPage() {
               <p className="mt-2 text-2xl font-semibold">{formatMoney(data?.current_month_expenses ?? 0)}</p>
             )}
           </Card>
-          <Card>
+          <Card className="p-5">
             <h3 className="text-sm uppercase tracking-wide text-muted-foreground">Net</h3>
             {isLoading ? (
               <div className="mt-2 h-8 w-28 animate-pulse rounded bg-muted" />
@@ -188,60 +190,60 @@ export function DashboardPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="p-5">
           <h2 className="mb-3 text-lg font-semibold">Patrimony Evolution (Yearly)</h2>
           {isChartsLoading ? <div className="h-64 animate-pulse rounded bg-muted" /> : <PatrimonyChart rows={patrimonyRows} />}
         </Card>
-        <Card>
+        <Card className="p-5">
           <h2 className="mb-3 text-lg font-semibold">Income vs Expenses (Last 12 Months)</h2>
           {isChartsLoading ? <div className="h-72 animate-pulse rounded bg-muted" /> : <IncomeExpenseChart rows={monthlyRows} />}
         </Card>
       </div>
 
-      <Card>
+      <Card className="p-5">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Latest transactions</h2>
-          <Badge>All accounts</Badge>
+          <Badge variant="secondary">All accounts</Badge>
         </div>
-        <DataTable>
-          <table className="min-w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-muted text-left text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2">Date</th>
-                <th className="px-3 py-2">Description</th>
-                <th className="px-3 py-2 text-right">Amount</th>
-                <th className="px-3 py-2">Currency</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="overflow-x-auto rounded-lg border border-border bg-background">
+          <Table>
+            <TableHeader>
+              <TableRow className="sticky top-0 z-10 bg-muted text-left text-muted-foreground hover:bg-muted">
+                <TableHead className="px-3 py-2">Date</TableHead>
+                <TableHead className="px-3 py-2">Description</TableHead>
+                <TableHead className="px-3 py-2 text-right">Amount</TableHead>
+                <TableHead className="px-3 py-2">Currency</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {isLoading
                 ? Array.from({ length: 6 }).map((_, index) => (
-                    <tr key={`loading-${index}`} className="border-t border-border">
-                      <td className="px-3 py-2"><div className="h-4 w-20 animate-pulse rounded bg-muted" /></td>
-                      <td className="px-3 py-2"><div className="h-4 w-40 animate-pulse rounded bg-muted" /></td>
-                      <td className="px-3 py-2"><div className="ml-auto h-4 w-20 animate-pulse rounded bg-muted" /></td>
-                      <td className="px-3 py-2"><div className="h-4 w-14 animate-pulse rounded bg-muted" /></td>
-                    </tr>
+                    <TableRow key={`loading-${index}`} className="border-t border-border hover:bg-muted/60">
+                      <TableCell className="px-3 py-2"><div className="h-4 w-20 animate-pulse rounded bg-muted" /></TableCell>
+                      <TableCell className="px-3 py-2"><div className="h-4 w-40 animate-pulse rounded bg-muted" /></TableCell>
+                      <TableCell className="px-3 py-2"><div className="ml-auto h-4 w-20 animate-pulse rounded bg-muted" /></TableCell>
+                      <TableCell className="px-3 py-2"><div className="h-4 w-14 animate-pulse rounded bg-muted" /></TableCell>
+                    </TableRow>
                   ))
                 : null}
               {latestTransactions.map((tx, index) => (
-                <tr key={tx.id} className={`border-t border-border ${index % 2 === 0 ? "bg-background" : "bg-muted/20"} hover:bg-muted/60`}>
-                  <td className="px-3 py-2">{tx.date}</td>
-                  <td className="px-3 py-2">{tx.description}</td>
-                  <td className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(tx.amount)}</td>
-                  <td className="px-3 py-2">{tx.currency}</td>
-                </tr>
+                <TableRow key={tx.id} className={`border-t border-border ${index % 2 === 0 ? "bg-background" : "bg-muted/20"} hover:bg-muted/60`}>
+                  <TableCell className="px-3 py-2">{tx.date}</TableCell>
+                  <TableCell className="px-3 py-2">{tx.description}</TableCell>
+                  <TableCell className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(tx.amount)}</TableCell>
+                  <TableCell className="px-3 py-2">{tx.currency}</TableCell>
+                </TableRow>
               ))}
               {isLatestEmpty ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-10 text-center text-sm text-muted-foreground">
+                <TableRow>
+                  <TableCell colSpan={4} className="px-6 py-10 text-center text-sm text-muted-foreground">
                     No recent transactions yet.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : null}
-            </tbody>
-          </table>
-        </DataTable>
+            </TableBody>
+          </Table>
+        </div>
       </Card>
     </div>
   );

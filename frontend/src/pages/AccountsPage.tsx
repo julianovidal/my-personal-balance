@@ -1,11 +1,24 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
-import { Button, Card, Input, Label, Modal, Select } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatMoney } from "@/lib/utils";
 import { Account, AccountImportMapping, AccountsBalanceResponse } from "@/types";
 
 const CURRENCIES = ["EUR", "USD", "BRL"] as const;
+
+const labelClass = "mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground";
 
 export function AccountsPage() {
   const qc = useQueryClient();
@@ -112,12 +125,12 @@ export function AccountsPage() {
     setIsAccountModalOpen(true);
   };
 
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = (e: { preventDefault(): void }) => {
     e.preventDefault();
     save.mutate();
   };
 
-  const onMappingSubmit = (e: FormEvent) => {
+  const onMappingSubmit = (e: { preventDefault(): void }) => {
     e.preventDefault();
     saveMapping.mutate();
   };
@@ -131,7 +144,7 @@ export function AccountsPage() {
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      <Card className="md:col-span-3">
+      <Card className="p-5 md:col-span-3">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Your accounts</h2>
@@ -172,7 +185,7 @@ export function AccountsPage() {
         </div>
       </Card>
 
-      <Card className="md:col-span-3">
+      <Card className="p-5 md:col-span-3">
         <h2 className="mb-3 text-xl font-semibold">Account import settings</h2>
         <p className="mb-4 text-sm text-muted-foreground">
           Configure how your import file columns map to expected transaction fields.
@@ -180,33 +193,37 @@ export function AccountsPage() {
 
         <form onSubmit={onMappingSubmit} className="space-y-3">
           <div>
-            <Label>Account</Label>
-            <Select value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)} required>
-              <option value="">Select account</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>{account.name}</option>
-              ))}
+            <Label className={labelClass}>Account</Label>
+            <Select value={selectedAccountId} onValueChange={setSelectedAccountId} required>
+              <SelectTrigger>
+                <SelectValue placeholder="Select account" />
+              </SelectTrigger>
+              <SelectContent>
+                {accounts.map((account) => (
+                  <SelectItem key={account.id} value={String(account.id)}>{account.name}</SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
 
           <div>
-            <Label>Date column name</Label>
+            <Label className={labelClass}>Date column name</Label>
             <Input value={dateColumn} onChange={(e) => setDateColumn(e.target.value)} placeholder="e.g. transaction_date" />
           </div>
           <div>
-            <Label>Description column name</Label>
+            <Label className={labelClass}>Description column name</Label>
             <Input value={descriptionColumn} onChange={(e) => setDescriptionColumn(e.target.value)} placeholder="e.g. details" />
           </div>
           <div>
-            <Label>Amount column name</Label>
+            <Label className={labelClass}>Amount column name</Label>
             <Input value={amountColumn} onChange={(e) => setAmountColumn(e.target.value)} placeholder="e.g. value" />
           </div>
           <div>
-            <Label>Currency column name</Label>
+            <Label className={labelClass}>Currency column name</Label>
             <Input value={currencyColumn} onChange={(e) => setCurrencyColumn(e.target.value)} placeholder="e.g. curr" />
           </div>
           <div>
-            <Label>Tag ID column name (optional)</Label>
+            <Label className={labelClass}>Tag ID column name (optional)</Label>
             <Input value={tagIdColumn} onChange={(e) => setTagIdColumn(e.target.value)} placeholder="e.g. category_id" />
           </div>
 
@@ -216,48 +233,57 @@ export function AccountsPage() {
         </form>
       </Card>
 
-      <Modal
-        open={Boolean(accountToDelete)}
-        title="Delete account"
-        onClose={() => setAccountToDelete(null)}
-      >
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete account{" "}
-            <span className="font-semibold text-foreground">{accountToDelete?.name}</span>?
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setAccountToDelete(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmDeleteAccount} disabled={remove.isPending}>
-              {remove.isPending ? "Deleting..." : "Delete account"}
-            </Button>
+      {/* Delete account confirmation dialog */}
+      <Dialog open={Boolean(accountToDelete)} onOpenChange={(open) => { if (!open) setAccountToDelete(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete account</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete account{" "}
+              <span className="font-semibold text-foreground">{accountToDelete?.name}</span>?
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setAccountToDelete(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={confirmDeleteAccount} disabled={remove.isPending}>
+                {remove.isPending ? "Deleting..." : "Delete account"}
+              </Button>
+            </div>
           </div>
-        </div>
-      </Modal>
+        </DialogContent>
+      </Dialog>
 
-      <Modal
-        open={isAccountModalOpen}
-        title={editing ? "Edit account" : "Add account"}
-        onClose={() => setIsAccountModalOpen(false)}
-      >
-        <form onSubmit={onSubmit} className="space-y-3">
-          <div>
-            <Label>Name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} required />
-          </div>
-          <div>
-            <Label>Currency</Label>
-            <Select value={currency} onChange={(e) => setCurrency(e.target.value)} required>
-              {CURRENCIES.map((curr) => (
-                <option key={curr} value={curr}>
-                  {curr}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <Button type="submit" className="w-full">{editing ? "Update" : "Create"}</Button>
-        </form>
-      </Modal>
+      {/* Add / Edit account dialog */}
+      <Dialog open={isAccountModalOpen} onOpenChange={(open) => { if (!open) setIsAccountModalOpen(false); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit account" : "Add account"}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={onSubmit} className="space-y-3">
+            <div>
+              <Label className={labelClass}>Name</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} required />
+            </div>
+            <div>
+              <Label className={labelClass}>Currency</Label>
+              <Select value={currency} onValueChange={setCurrency} required>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CURRENCIES.map((curr) => (
+                    <SelectItem key={curr} value={curr}>
+                      {curr}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button type="submit" className="w-full">{editing ? "Update" : "Create"}</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
