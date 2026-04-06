@@ -4,11 +4,11 @@ This project is the frontend for My Personal Balance.
 
 ## Project Specification
 
-- React 18
+- React 19
 - TypeScript 5
 - Tailwind CSS 3
 - shadcn-style components
-- Vite 7
+- Vite 8
 
 ## Package Manager
 
