@@ -1,6 +1,6 @@
 # My Personal Balance - Backend
 
-This project is the backend for My Personal Balance
+This project is the backend for My Personal Balance.
 
 ## Project Specification
 
@@ -8,6 +8,7 @@ This project is the backend for My Personal Balance
 - SQLAlchemy
 - JWT auth
 - Database: Postgres
+- Package manager: uv
 
 ## Database Domain model
 
@@ -26,7 +27,7 @@ To run manually:
 
 ```bash
 cd backend
-alembic upgrade head
+uv run alembic upgrade head
 ```
 
 ## Seed demo data
@@ -34,13 +35,8 @@ alembic upgrade head
 Run seed in the backend container:
 
 ```bash
-podman exec -it balance-api python -m app.scripts.seed
+podman exec -it balance-api uv run python -m app.scripts.seed
 ```
-
-Demo login:
-
-- Email: `demo@balance.local`
-- Password: `demo1234`
 
 ## CSV/XLSX import format
 
@@ -55,8 +51,62 @@ Optional:
 - `currency` (defaults to selected account currency if missing/blank)
 - `tag_id`
 
+## Dependency Management
+
+Dependencies are managed with [uv](https://docs.astral.sh/uv/).
+The `pyproject.toml` is the source of truth; `uv.lock` pins exact versions.
+**Always commit both files together.**
+
+### Install dependencies locally
+
+```bash
+cd backend
+uv sync
+```
+
+### Add a new dependency
+
+```bash
+cd backend
+uv add <package>==<version>
+```
+
+This updates both `pyproject.toml` and `uv.lock`. Commit both.
+
+### Remove a dependency
+
+```bash
+cd backend
+uv remove <package>
+```
+
+### Update a dependency
+
+```bash
+cd backend
+uv lock --upgrade-package <package>
+```
+
+### Run commands in the uv environment
+
+```bash
+cd backend
+uv run python -m app.scripts.seed
+uv run alembic upgrade head
+uv run pytest
+```
+
 ## Development Guidelines
 
 ### Code Standards
 
+- Follow PEP 8 and FastAPI conventions
+- Separate business logic from HTTP handlers and DB queries
+- All functions must have a single, clearly defined responsibility
+
 ### File Organization
+
+- `app/` — application source
+- `alembic/` — database migrations
+- `pyproject.toml` — project metadata and dependencies
+- `uv.lock` — locked dependency graph (commit this)
