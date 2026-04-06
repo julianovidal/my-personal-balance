@@ -40,6 +40,8 @@ Apps:
 ## Active Technologies
 - Python 3.12 (both backend and classifier) (001-migrate-python-uv)
 - PostgreSQL 16 (unchanged) (001-migrate-python-uv)
+- Node.js 22 (via `node:22-alpine` Docker image); TypeScript 5.9 + pnpm (latest stable via `corepack enable pnpm`); existing frontend deps unchanged (React 18, Vite 7, Tailwind 3, TanStack Query 5) (002-frontend-pnpm-migration)
+- N/A — no storage layer involved (002-frontend-pnpm-migration)
 
 ## Recent Changes
 - 001-migrate-python-uv: Added Python 3.12 (both backend and classifier)
