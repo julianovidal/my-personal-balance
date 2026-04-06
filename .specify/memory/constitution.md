@@ -1,19 +1,20 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.0.0 → 1.0.1
+Version change: 1.1.0 → 1.1.1
 Modified principles: N/A
 Added sections: N/A
 Removed sections: N/A
 Amendment summary:
-  - §Technology Constraints: replaced `package-lock.json` with `pnpm-lock.yaml`;
-    added pnpm as the designated Node package manager for the frontend service.
+  - §Development Workflow §6 Branch Naming: added `docs` work-type prefix for
+    documentation changes (README, AGENTS.md, specs, and other doc artifacts).
+    AGENTS.md updated in lockstep.
 Templates reviewed:
-  - .specify/templates/plan-template.md   ✅ No lockfile references; Constitution Check gates unaffected
-  - .specify/templates/spec-template.md   ✅ No lockfile references; unaffected
-  - .specify/templates/tasks-template.md  ✅ No lockfile references; unaffected
-  - .specify/templates/agent-file-template.md ✅ No lockfile references; unaffected
-  - README.md                             ✅ No lockfile references; unaffected
+  - .specify/templates/plan-template.md   ✅ No branch-naming references; unaffected
+  - .specify/templates/spec-template.md   ✅ No branch-naming references; unaffected
+  - .specify/templates/tasks-template.md  ✅ No branch-naming references; unaffected
+  - .specify/templates/agent-file-template.md ✅ No branch-naming references; unaffected
+  - README.md                             ✅ No branch-naming references; unaffected
 Deferred TODOs: None
 -->
 
@@ -138,6 +139,20 @@ All functional work MUST follow this sequence:
    Principles; a checklist confirmation is required.
 5. **Migration safety**: Any backend change that alters the database schema MUST include
    a forward Alembic migration and, where data loss is possible, a rollback migration.
+6. **Branch naming**: Every branch MUST follow the pattern
+   `<work-type>/brief-description-from-spec`. The permitted work-type prefixes are:
+
+   | Prefix | When to use |
+   | - | - |
+   | `feat` | A new feature directly related to the product (not tooling or architecture). |
+   | `chore` | Non-feature work: architecture changes, tooling updates, dependency upgrades, project structure. |
+   | `fix` | Repairing a broken feature — a regression, a missed test scenario, or a broken flow. |
+   | `docs` | Adding or updating documentation: README files, AGENTS.md files, specs, and other doc artifacts. |
+   | `other` | All changes that do not fit the above categories. |
+
+   A branch MUST use exactly one prefix. The description segment MUST be lowercase,
+   hyphen-separated, and derived from the associated spec or task title. Example:
+   `feat/csv-transaction-import`, `fix/auth-token-expiry`.
 
 ## Governance
 
@@ -162,4 +177,4 @@ be completed before coding begins and re-verified after Phase 1 design.
 AGENTS.md files (`backend/AGENTS.md`, `frontend/AGENTS.md`, `classifier/AGENTS.md`)
 alongside this constitution.
 
-**Version**: 1.0.1 | **Ratified**: 2026-04-06 | **Last Amended**: 2026-04-06
+**Version**: 1.1.1 | **Ratified**: 2026-04-06 | **Last Amended**: 2026-04-06

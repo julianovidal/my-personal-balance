@@ -16,6 +16,7 @@ A git branch should use the following pattern:
 - feat: a new feature to be developed in the project. It is a feature related to the project. If this is something that is related to the project architecture, or something related to the tools/libraries used in the project this is not a new feature.
 - chore: A chore is a work that is not a feature, it is a change that is not adding, nor removing a feature. It might be something related to the architecture of the project, or a change in the project structure. For example, could be used in a library update.
 - fix: A fix is used when we are fixing something that is broken. Maybe because we missed a test or we changed something and a feature is no longer working as expected.
+- docs: A docs change is used when we are adding or updating documentation. This includes README files, AGENTS.md files, specs, and other documentation artifacts.
 - other: All other types of changes.
 
 ## Project Specifications
