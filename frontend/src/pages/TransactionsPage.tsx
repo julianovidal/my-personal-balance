@@ -9,13 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatMoney } from "@/lib/utils";
 import {
@@ -589,20 +583,15 @@ export function TransactionsPage() {
         <div className="grid gap-3 md:grid-cols-6">
           <div>
             <Label className={labelClass}>Date range</Label>
-            <Select value={datePreset} onValueChange={(v) => onDatePresetChange(v as DateRangePreset)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="this_month">This month</SelectItem>
-                <SelectItem value="last_month">Last month</SelectItem>
-                <SelectItem value="this_year">This year</SelectItem>
-                <SelectItem value="last_year">Last year</SelectItem>
-                <SelectItem value="last_3_months">Last 3 months</SelectItem>
-                <SelectItem value="last_6_months">Last 6 months</SelectItem>
-                <SelectItem value="last_12_months">Last 12 months</SelectItem>
-                <SelectItem value="custom">Custom</SelectItem>
-              </SelectContent>
+            <Select value={datePreset} onChange={(event) => onDatePresetChange(event.target.value as DateRangePreset)}>
+              <option value="this_month">This month</option>
+              <option value="last_month">Last month</option>
+              <option value="this_year">This year</option>
+              <option value="last_year">Last year</option>
+              <option value="last_3_months">Last 3 months</option>
+              <option value="last_6_months">Last 6 months</option>
+              <option value="last_12_months">Last 12 months</option>
+              <option value="custom">Custom</option>
             </Select>
             <div className="mt-2 flex gap-2">
               <Button variant="outline" type="button" onClick={() => shiftDateRangeByMonths(-1)}>
@@ -637,32 +626,22 @@ export function TransactionsPage() {
           </div>
           <div>
             <Label className={labelClass}>Account</Label>
-            <Select value={accountFilter || "__all__"} onValueChange={(v) => onFilterChange(setAccountFilter, v === "__all__" ? "" : v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="All accounts" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All accounts</SelectItem>
-                {accounts.map((account) => (
-                  <SelectItem key={account.id} value={String(account.id)}>
-                    {account.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+            <Select value={accountFilter} onChange={(event) => onFilterChange(setAccountFilter, event.target.value)}>
+              <option value="">All accounts</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
             </Select>
           </div>
           <div>
             <Label className={labelClass}>Tag</Label>
-            <Select value={tagFilter || "__all__"} onValueChange={(v) => onFilterChange(setTagFilter, v === "__all__" ? "" : v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="All tags" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All tags</SelectItem>
-                {tags.map((tag) => (
-                  <SelectItem key={tag.id} value={String(tag.id)}>{tag.label}</SelectItem>
-                ))}
-              </SelectContent>
+            <Select value={tagFilter} onChange={(event) => onFilterChange(setTagFilter, event.target.value)}>
+              <option value="">All tags</option>
+              {tags.map((tag) => (
+                <option key={tag.id} value={tag.id}>{tag.label}</option>
+              ))}
             </Select>
           </div>
         </div>
@@ -688,16 +667,11 @@ export function TransactionsPage() {
         <div className="space-y-3">
           <Card className="p-5">
             <Label className={labelClass}>Trend tag</Label>
-            <Select value={trendTagId || "__none__"} onValueChange={(v) => setTrendTagId(v === "__none__" ? "" : v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select tag" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Select tag</SelectItem>
-                {tags.map((tag) => (
-                  <SelectItem key={tag.id} value={String(tag.id)}>{tag.label}</SelectItem>
-                ))}
-              </SelectContent>
+            <Select value={trendTagId} onChange={(event) => setTrendTagId(event.target.value)}>
+              <option value="">Select tag</option>
+              {tags.map((tag) => (
+                <option key={tag.id} value={tag.id}>{tag.label}</option>
+              ))}
             </Select>
           </Card>
           <TagTrendBars rows={trendData?.points ?? []} />
@@ -870,19 +844,14 @@ export function TransactionsPage() {
               <div className="w-20">
                 <Select
                   value={String(pageSize)}
-                  onValueChange={(v) => {
-                    setPageSize(Number(v));
+                  onChange={(event) => {
+                    setPageSize(Number(event.target.value));
                     setPage(1);
                   }}
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="20">20</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
                 </Select>
               </div>
             </div>
@@ -949,15 +918,11 @@ export function TransactionsPage() {
           <form onSubmit={(e) => { e.preventDefault(); saveTx.mutate(); }} className="space-y-3">
             <div>
               <Label className={labelClass}>Account</Label>
-              <Select value={accountId} onValueChange={onAccountChange} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select account" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts.map((a) => (
-                    <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={accountId} onChange={(event) => onAccountChange(event.target.value)} required>
+                <option value="">Select account</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
               </Select>
             </div>
             <div>
@@ -983,46 +948,32 @@ export function TransactionsPage() {
             </div>
             <div>
               <Label className={labelClass}>Currency</Label>
-              <Select value={currency} onValueChange={setCurrency} required>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CURRENCIES.map((curr) => (
-                    <SelectItem key={curr} value={curr}>{curr}</SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={currency} onChange={(event) => setCurrency(event.target.value)} required>
+                {CURRENCIES.map((curr) => (
+                  <option key={curr} value={curr}>{curr}</option>
+                ))}
               </Select>
             </div>
             {isTransfer ? (
               <div>
                 <Label className={labelClass}>Destination account</Label>
-                <Select value={destinationAccountId} onValueChange={setDestinationAccountId} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select destination" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accounts
-                      .filter((a) => String(a.id) !== accountId)
-                      .map((a) => (
-                        <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
-                      ))}
-                  </SelectContent>
+                <Select value={destinationAccountId} onChange={(event) => setDestinationAccountId(event.target.value)} required>
+                  <option value="">Select destination</option>
+                  {accounts
+                    .filter((a) => String(a.id) !== accountId)
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
                 </Select>
               </div>
             ) : (
               <div>
                 <Label className={labelClass}>Tag</Label>
-                <Select value={createTagId || "__none__"} onValueChange={(v) => setCreateTagId(v === "__none__" ? "" : v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="No tag" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">No tag</SelectItem>
-                    {tags.map((tag) => (
-                      <SelectItem key={tag.id} value={String(tag.id)}>{tag.label}</SelectItem>
-                    ))}
-                  </SelectContent>
+                <Select value={createTagId} onChange={(event) => setCreateTagId(event.target.value)}>
+                  <option value="">No tag</option>
+                  {tags.map((tag) => (
+                    <option key={tag.id} value={tag.id}>{tag.label}</option>
+                  ))}
                 </Select>
               </div>
             )}
@@ -1054,42 +1005,33 @@ export function TransactionsPage() {
               <Label className={labelClass}>Account</Label>
               <Select
                 value={uploadAccountId}
-                onValueChange={(v) => {
-                  setUploadAccountId(v);
+                onChange={(event) => {
+                  setUploadAccountId(event.target.value);
                   setImportPreview(null);
                   setImportResult("");
                 }}
                 required
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select account" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts.map((a) => (
-                    <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
-                  ))}
-                </SelectContent>
+                <option value="">Select account</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
               </Select>
             </div>
             <div>
               <Label className={labelClass}>Default tag (optional)</Label>
               <Select
-                value={uploadTagId || "__none__"}
-                onValueChange={(v) => {
-                  setUploadTagId(v === "__none__" ? "" : v);
+                value={uploadTagId}
+                onChange={(event) => {
+                  setUploadTagId(event.target.value);
                   setImportPreview(null);
                   setImportResult("");
                 }}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="No default tag" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">No default tag</SelectItem>
-                  {tags.map((tag) => (
-                    <SelectItem key={tag.id} value={String(tag.id)}>{tag.label}</SelectItem>
-                  ))}
-                </SelectContent>
+                <option value="">No default tag</option>
+                {tags.map((tag) => (
+                  <option key={tag.id} value={tag.id}>{tag.label}</option>
+                ))}
               </Select>
             </div>
             <div>
@@ -1217,18 +1159,13 @@ export function TransactionsPage() {
                           />
                         </TableCell>
                         <TableCell className="px-3 py-2">
-                          <Select value={row.tag_id || "__none__"} onValueChange={(v) => updateSplitRow(index, "tag_id", v === "__none__" ? "" : v)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="No tag" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">No tag</SelectItem>
-                              {tags.map((tag) => (
-                                <SelectItem key={tag.id} value={String(tag.id)}>
-                                  {tag.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
+                          <Select value={row.tag_id} onChange={(event) => updateSplitRow(index, "tag_id", event.target.value)}>
+                            <option value="">No tag</option>
+                            {tags.map((tag) => (
+                              <option key={tag.id} value={tag.id}>
+                                {tag.label}
+                              </option>
+                            ))}
                           </Select>
                         </TableCell>
                         <TableCell className="px-3 py-2">

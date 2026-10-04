@@ -5,13 +5,7 @@ import { classifierApi } from "@/api/classifierClient";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatMoney } from "@/lib/utils";
 import {
@@ -157,17 +151,13 @@ export function ClassifierPage() {
         <div className="grid gap-4 md:grid-cols-3">
           <div>
             <Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Account</Label>
-            <Select value={accountId} onValueChange={setAccountId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select account" />
-              </SelectTrigger>
-              <SelectContent>
-                {accounts.map((account) => (
-                  <SelectItem key={account.id} value={String(account.id)}>
-                    {account.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+            <Select value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+              <option value="">Select account</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
             </Select>
           </div>
 
@@ -228,22 +218,17 @@ export function ClassifierPage() {
                       </TableCell>
                       <TableCell className="px-3 py-2">
                         <Select
-                          value={selectedTag || "__none__"}
-                          onValueChange={(value) => {
-                            setSelectedTags((prev) => ({ ...prev, [tx.id]: value === "__none__" ? "" : value }));
+                          value={selectedTag}
+                          onChange={(event) => {
+                            setSelectedTags((prev) => ({ ...prev, [tx.id]: event.target.value }));
                           }}
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select tag" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">Select tag</SelectItem>
-                            {tags.map((tag) => (
-                              <SelectItem key={tag.id} value={String(tag.id)}>
-                                {tag.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
+                          <option value="">Select tag</option>
+                          {tags.map((tag) => (
+                            <option key={tag.id} value={tag.id}>
+                              {tag.label}
+                            </option>
+                          ))}
                         </Select>
                       </TableCell>
                       <TableCell className="px-3 py-2 text-right">

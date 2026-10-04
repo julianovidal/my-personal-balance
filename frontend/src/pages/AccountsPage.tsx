@@ -6,13 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select } from "@/components/ui/select";
 import { formatMoney } from "@/lib/utils";
 import { Account, AccountImportMapping, AccountsBalanceResponse } from "@/types";
 
@@ -194,15 +188,11 @@ export function AccountsPage() {
         <form onSubmit={onMappingSubmit} className="space-y-3">
           <div>
             <Label className={labelClass}>Account</Label>
-            <Select value={selectedAccountId} onValueChange={setSelectedAccountId} required>
-              <SelectTrigger>
-                <SelectValue placeholder="Select account" />
-              </SelectTrigger>
-              <SelectContent>
-                {accounts.map((account) => (
-                  <SelectItem key={account.id} value={String(account.id)}>{account.name}</SelectItem>
-                ))}
-              </SelectContent>
+            <Select value={selectedAccountId} onChange={(event) => setSelectedAccountId(event.target.value)} required>
+              <option value="">Select account</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>{account.name}</option>
+              ))}
             </Select>
           </div>
 
@@ -267,17 +257,12 @@ export function AccountsPage() {
             </div>
             <div>
               <Label className={labelClass}>Currency</Label>
-              <Select value={currency} onValueChange={setCurrency} required>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CURRENCIES.map((curr) => (
-                    <SelectItem key={curr} value={curr}>
-                      {curr}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={currency} onChange={(event) => setCurrency(event.target.value)} required>
+                {CURRENCIES.map((curr) => (
+                  <option key={curr} value={curr}>
+                    {curr}
+                  </option>
+                ))}
               </Select>
             </div>
             <Button type="submit" className="w-full">{editing ? "Update" : "Create"}</Button>
