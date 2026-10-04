@@ -13,7 +13,6 @@ export default defineConfig({
     include: [
       "@radix-ui/react-dialog",
       "@radix-ui/react-label",
-      "@radix-ui/react-select",
       "@radix-ui/react-slot"
     ]
   }
