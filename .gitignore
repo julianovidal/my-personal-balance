@@ -17,3 +17,6 @@ dist/
 
 # Classifier models
 classifier/data/*.joblib
+
+# DB backups
+backups/
