@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2, MoreHorizontal, SearchX } from "lucide-react";
 import { api } from "@/api/client";
 import { Badge } from "@/components/ui/badge";
+import { ActionsMenu } from "@/components/ui/actions-menu";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -224,30 +225,6 @@ export function TransactionsPage() {
       navigate("/transactions", { replace: true });
     }
   }, [searchParams, navigate]);
-
-  useEffect(() => {
-    if (openActionsMenuId === null) return;
-
-    const onPointerDown = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (!target?.closest('[data-actions-menu-root="true"]')) {
-        setOpenActionsMenuId(null);
-      }
-    };
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpenActionsMenuId(null);
-      }
-    };
-
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [openActionsMenuId]);
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts"],
@@ -739,19 +716,41 @@ export function TransactionsPage() {
                   <TableCell className="px-3 py-2">{tx.currency}</TableCell>
                   <TableCell className="px-3 py-2">{tx.is_transfer ? "-" : (tags.find((t) => t.id === tx.tag_id)?.label ?? "-")}</TableCell>
                   <TableCell className="px-3 py-2">
-                    <div className="relative inline-block" data-actions-menu-root="true">
-                      <Button
-                        variant="outline"
-                        className="h-8 w-8 p-0"
-                        onClick={() => setOpenActionsMenuId((current) => (current === tx.id ? null : tx.id))}
-                        aria-label="Open actions menu"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-
-                      {openActionsMenuId === tx.id ? (
-                        <div className="absolute right-0 z-20 mt-1 w-40 rounded-lg border border-border bg-card p-1 shadow-lg">
-                          {tx.parent_transaction_id ? (
+                    <ActionsMenu
+                      open={openActionsMenuId === tx.id}
+                      onOpenChange={(next) => setOpenActionsMenuId(next ? tx.id : null)}
+                      trigger={
+                        <Button variant="outline" className="h-8 w-8 p-0" aria-label="Open actions menu">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      }
+                    >
+                      {tx.parent_transaction_id ? (
+                        <button
+                          type="button"
+                          className="w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+                          onClick={() => {
+                            openSplitModal(tx);
+                            setOpenActionsMenuId(null);
+                          }}
+                        >
+                          Split
+                        </button>
+                      ) : (
+                        <>
+                          {tx.id > 0 ? (
+                            <button
+                              type="button"
+                              className="w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+                              onClick={() => {
+                                startEdit(tx);
+                                setOpenActionsMenuId(null);
+                              }}
+                            >
+                              Edit
+                            </button>
+                          ) : null}
+                          {tx.id > 0 && !tx.is_transfer ? (
                             <button
                               type="button"
                               className="w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
@@ -762,49 +761,22 @@ export function TransactionsPage() {
                             >
                               Split
                             </button>
-                          ) : (
-                            <>
-                              {tx.id > 0 ? (
-                                <button
-                                  type="button"
-                                  className="w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
-                                  onClick={() => {
-                                    startEdit(tx);
-                                    setOpenActionsMenuId(null);
-                                  }}
-                                >
-                                  Edit
-                                </button>
-                              ) : null}
-                              {tx.id > 0 && !tx.is_transfer ? (
-                                <button
-                                  type="button"
-                                  className="w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
-                                  onClick={() => {
-                                    openSplitModal(tx);
-                                    setOpenActionsMenuId(null);
-                                  }}
-                                >
-                                  Split
-                                </button>
-                              ) : null}
-                              {tx.id > 0 ? (
-                                <button
-                                  type="button"
-                                  className="w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
-                                  onClick={() => {
-                                    setTransactionToDelete(tx);
-                                    setOpenActionsMenuId(null);
-                                  }}
-                                >
-                                  Delete
-                                </button>
-                              ) : null}
-                            </>
-                          )}
-                        </div>
-                      ) : null}
-                    </div>
+                          ) : null}
+                          {tx.id > 0 ? (
+                            <button
+                              type="button"
+                              className="w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+                              onClick={() => {
+                                setTransactionToDelete(tx);
+                                setOpenActionsMenuId(null);
+                              }}
+                            >
+                              Delete
+                            </button>
+                          ) : null}
+                        </>
+                      )}
+                    </ActionsMenu>
                   </TableCell>
                 </TableRow>
               ))}
