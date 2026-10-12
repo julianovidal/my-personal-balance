@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { FileSpreadsheet } from "lucide-react";
 import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,6 +15,34 @@ const CURRENCIES = ["EUR", "USD", "BRL"] as const;
 
 const labelClass = "mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground";
 
+type MappingFields = {
+  dateColumn: string;
+  descriptionColumn: string;
+  amountColumn: string;
+  currencyColumn: string;
+  tagIdColumn: string;
+};
+
+function fieldsFromMapping(mapping?: AccountImportMapping | null): MappingFields {
+  return {
+    dateColumn: mapping?.date_column ?? "",
+    descriptionColumn: mapping?.description_column ?? "",
+    amountColumn: mapping?.amount_column ?? "",
+    currencyColumn: mapping?.currency_column ?? "",
+    tagIdColumn: mapping?.tag_id_column ?? ""
+  };
+}
+
+function fieldsEqual(a: MappingFields, b: MappingFields): boolean {
+  return (
+    a.dateColumn === b.dateColumn &&
+    a.descriptionColumn === b.descriptionColumn &&
+    a.amountColumn === b.amountColumn &&
+    a.currencyColumn === b.currencyColumn &&
+    a.tagIdColumn === b.tagIdColumn
+  );
+}
+
 export function AccountsPage() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Account | null>(null);
@@ -22,12 +51,32 @@ export function AccountsPage() {
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("EUR");
 
-  const [selectedAccountId, setSelectedAccountId] = useState("");
+  const [importSettingsAccount, setImportSettingsAccount] = useState<Account | null>(null);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const [mappingBaseline, setMappingBaseline] = useState<MappingFields | null>(null);
+  const [mappingFormHydratedForId, setMappingFormHydratedForId] = useState<number | null>(null);
   const [dateColumn, setDateColumn] = useState("");
   const [descriptionColumn, setDescriptionColumn] = useState("");
   const [amountColumn, setAmountColumn] = useState("");
   const [currencyColumn, setCurrencyColumn] = useState("");
   const [tagIdColumn, setTagIdColumn] = useState("");
+
+  const importAccountId = importSettingsAccount ? String(importSettingsAccount.id) : "";
+
+  const currentMappingFields = useMemo(
+    (): MappingFields => ({
+      dateColumn,
+      descriptionColumn,
+      amountColumn,
+      currencyColumn,
+      tagIdColumn
+    }),
+    [dateColumn, descriptionColumn, amountColumn, currencyColumn, tagIdColumn]
+  );
+
+  const isMappingDirty = Boolean(
+    importSettingsAccount && mappingBaseline && !fieldsEqual(currentMappingFields, mappingBaseline)
+  );
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts"],
@@ -39,28 +88,33 @@ export function AccountsPage() {
   });
   const isAccountsLoading = !balances && accounts.length === 0;
 
-  useEffect(() => {
-    if (!selectedAccountId && accounts.length > 0) {
-      setSelectedAccountId(String(accounts[0].id));
-    }
-  }, [accounts, selectedAccountId]);
-
-  const { data: mapping } = useQuery({
-    queryKey: ["account-import-mapping", selectedAccountId],
-    enabled: Boolean(selectedAccountId),
+  const { data: mapping, isFetching: isMappingLoading } = useQuery({
+    queryKey: ["account-import-mapping", importAccountId],
+    enabled: Boolean(importSettingsAccount),
+    refetchOnWindowFocus: false,
     queryFn: async () => {
-      const res = await api.get<AccountImportMapping>(`/accounts/${selectedAccountId}/import-mapping`);
+      const res = await api.get<AccountImportMapping>(`/accounts/${importAccountId}/import-mapping`);
       return res.data;
     }
   });
 
   useEffect(() => {
-    setDateColumn(mapping?.date_column ?? "");
-    setDescriptionColumn(mapping?.description_column ?? "");
-    setAmountColumn(mapping?.amount_column ?? "");
-    setCurrencyColumn(mapping?.currency_column ?? "");
-    setTagIdColumn(mapping?.tag_id_column ?? "");
-  }, [mapping]);
+    if (!importSettingsAccount) {
+      setMappingFormHydratedForId(null);
+      return;
+    }
+    if (isMappingLoading) return;
+    if (mappingFormHydratedForId === importSettingsAccount.id) return;
+
+    const next = fieldsFromMapping(mapping);
+    setDateColumn(next.dateColumn);
+    setDescriptionColumn(next.descriptionColumn);
+    setAmountColumn(next.amountColumn);
+    setCurrencyColumn(next.currencyColumn);
+    setTagIdColumn(next.tagIdColumn);
+    setMappingBaseline(next);
+    setMappingFormHydratedForId(importSettingsAccount.id);
+  }, [importSettingsAccount, mapping, isMappingLoading, mappingFormHydratedForId]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -89,10 +143,30 @@ export function AccountsPage() {
     }
   });
 
+  const closeImportSettings = () => {
+    setImportSettingsAccount(null);
+    setDiscardConfirmOpen(false);
+    setMappingBaseline(null);
+    setMappingFormHydratedForId(null);
+    setDateColumn("");
+    setDescriptionColumn("");
+    setAmountColumn("");
+    setCurrencyColumn("");
+    setTagIdColumn("");
+  };
+
+  const requestCloseImportSettings = () => {
+    if (isMappingDirty) {
+      setDiscardConfirmOpen(true);
+      return;
+    }
+    closeImportSettings();
+  };
+
   const saveMapping = useMutation({
     mutationFn: async () => {
-      if (!selectedAccountId) return;
-      await api.put(`/accounts/${selectedAccountId}/import-mapping`, {
+      if (!importSettingsAccount) return;
+      await api.put(`/accounts/${importSettingsAccount.id}/import-mapping`, {
         date_column: dateColumn,
         description_column: descriptionColumn,
         amount_column: amountColumn,
@@ -101,7 +175,8 @@ export function AccountsPage() {
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["account-import-mapping", selectedAccountId] });
+      qc.invalidateQueries({ queryKey: ["account-import-mapping", importAccountId] });
+      closeImportSettings();
     }
   });
 
@@ -119,6 +194,11 @@ export function AccountsPage() {
     setIsAccountModalOpen(true);
   };
 
+  const openImportSettings = (account: Account) => {
+    setDiscardConfirmOpen(false);
+    setImportSettingsAccount(account);
+  };
+
   const onSubmit = (e: { preventDefault(): void }) => {
     e.preventDefault();
     save.mutate();
@@ -134,11 +214,15 @@ export function AccountsPage() {
     remove.mutate(accountToDelete.id);
   };
 
+  const confirmDiscardImportChanges = () => {
+    closeImportSettings();
+  };
+
   const balanceByAccount = new Map((balances?.by_account ?? []).map((item) => [item.account_id, item]));
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
-      <Card className="p-5 md:col-span-3">
+    <div className="grid gap-4">
+      <Card className="p-5">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Your accounts</h2>
@@ -164,6 +248,16 @@ export function AccountsPage() {
                 <p className="text-xs text-muted-foreground">{formatMoney(balanceByAccount.get(a.id)?.balance)} {a.currency}</p>
               </div>
               <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label={`Import settings for ${a.name}`}
+                  title="Import settings"
+                  onClick={() => openImportSettings(a)}
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                </Button>
                 <Button variant="outline" onClick={() => startEdit(a)}>Edit</Button>
                 <Button variant="destructive" onClick={() => setAccountToDelete(a)}>Delete</Button>
               </div>
@@ -177,50 +271,6 @@ export function AccountsPage() {
             </div>
           ) : null}
         </div>
-      </Card>
-
-      <Card className="p-5 md:col-span-3">
-        <h2 className="mb-3 text-xl font-semibold">Account import settings</h2>
-        <p className="mb-4 text-sm text-muted-foreground">
-          Configure how your import file columns map to expected transaction fields.
-        </p>
-
-        <form onSubmit={onMappingSubmit} className="space-y-3">
-          <div>
-            <Label className={labelClass}>Account</Label>
-            <Select value={selectedAccountId} onChange={(event) => setSelectedAccountId(event.target.value)} required>
-              <option value="">Select account</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>{account.name}</option>
-              ))}
-            </Select>
-          </div>
-
-          <div>
-            <Label className={labelClass}>Date column name</Label>
-            <Input value={dateColumn} onChange={(e) => setDateColumn(e.target.value)} placeholder="e.g. transaction_date" />
-          </div>
-          <div>
-            <Label className={labelClass}>Description column name</Label>
-            <Input value={descriptionColumn} onChange={(e) => setDescriptionColumn(e.target.value)} placeholder="e.g. details" />
-          </div>
-          <div>
-            <Label className={labelClass}>Amount column name</Label>
-            <Input value={amountColumn} onChange={(e) => setAmountColumn(e.target.value)} placeholder="e.g. value" />
-          </div>
-          <div>
-            <Label className={labelClass}>Currency column name</Label>
-            <Input value={currencyColumn} onChange={(e) => setCurrencyColumn(e.target.value)} placeholder="e.g. curr" />
-          </div>
-          <div>
-            <Label className={labelClass}>Tag ID column name (optional)</Label>
-            <Input value={tagIdColumn} onChange={(e) => setTagIdColumn(e.target.value)} placeholder="e.g. category_id" />
-          </div>
-
-          <Button type="submit" disabled={!selectedAccountId}>
-            Save mapping
-          </Button>
-        </form>
       </Card>
 
       {/* Delete account confirmation dialog */}
@@ -267,6 +317,74 @@ export function AccountsPage() {
             </div>
             <Button type="submit" className="w-full">{editing ? "Update" : "Create"}</Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Per-account import mapping */}
+      <Dialog
+        open={Boolean(importSettingsAccount)}
+        onOpenChange={(open) => {
+          if (!open) requestCloseImportSettings();
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Import settings{importSettingsAccount ? ` — ${importSettingsAccount.name}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Configure how your import file columns map to expected transaction fields.
+          </p>
+          <form onSubmit={onMappingSubmit} className="space-y-3">
+            <div>
+              <Label className={labelClass}>Date column name</Label>
+              <Input value={dateColumn} onChange={(e) => setDateColumn(e.target.value)} placeholder="e.g. transaction_date" />
+            </div>
+            <div>
+              <Label className={labelClass}>Description column name</Label>
+              <Input value={descriptionColumn} onChange={(e) => setDescriptionColumn(e.target.value)} placeholder="e.g. details" />
+            </div>
+            <div>
+              <Label className={labelClass}>Amount column name</Label>
+              <Input value={amountColumn} onChange={(e) => setAmountColumn(e.target.value)} placeholder="e.g. value" />
+            </div>
+            <div>
+              <Label className={labelClass}>Currency column name</Label>
+              <Input value={currencyColumn} onChange={(e) => setCurrencyColumn(e.target.value)} placeholder="e.g. curr" />
+            </div>
+            <div>
+              <Label className={labelClass}>Tag ID column name (optional)</Label>
+              <Input value={tagIdColumn} onChange={(e) => setTagIdColumn(e.target.value)} placeholder="e.g. category_id" />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={requestCloseImportSettings}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!importSettingsAccount || saveMapping.isPending}>
+                {saveMapping.isPending ? "Saving..." : "Save mapping"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={discardConfirmOpen} onOpenChange={(open) => { if (!open) setDiscardConfirmOpen(false); }}>
+        <DialogContent aria-label="Discard changes">
+          <DialogHeader>
+            <DialogTitle>Discard changes?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            You have unsaved import settings. Discard them and close?
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setDiscardConfirmOpen(false)}>
+              Keep editing
+            </Button>
+            <Button type="button" variant="destructive" onClick={confirmDiscardImportChanges}>
+              Discard
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
