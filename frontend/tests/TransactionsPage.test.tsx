@@ -22,6 +22,21 @@ const parentTransaction: Transaction = {
   parent_transaction_id: null
 };
 
+const secondTransaction: Transaction = {
+  id: 2,
+  date: "2026-10-02",
+  description: "Coffee shop",
+  account_id: 1,
+  tag_id: null,
+  amount: "-5.00",
+  currency: "EUR",
+  is_transfer: false,
+  transfer_group_id: null,
+  transfer_direction: null,
+  linked_account_id: null,
+  parent_transaction_id: null
+};
+
 vi.mock("@/api/client", () => ({
   api: {
     get: vi.fn(),
@@ -162,5 +177,67 @@ describe("TransactionsPage split dialog", () => {
     fireEvent.click(overlay as HTMLElement);
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("TransactionsPage row actions menu", () => {
+  beforeEach(() => {
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url === "/accounts") {
+        return { data: [{ id: 1, name: "Checking", currency: "EUR", user_id: 1 }] };
+      }
+      if (url === "/tags") {
+        return { data: [] };
+      }
+      if (url.startsWith("/transactions?")) {
+        return {
+          data: {
+            items: [parentTransaction, secondTransaction],
+            total: 2,
+            page: 1,
+            page_size: 20,
+            total_pages: 1
+          }
+        };
+      }
+      if (url.includes("/summary")) {
+        return { data: { overall: { income: "0.00", expenses: "0.00", net: "0.00" }, by_account: [] } };
+      }
+      if (url.includes("/analytics")) {
+        return { data: { by_tag: [], by_account: [] } };
+      }
+      return { data: [] };
+    });
+  });
+
+  it("portals the actions menu outside the table overflow wrapper on the last row", async () => {
+    const user = userEvent.setup();
+    renderTransactionsPage();
+    await screen.findByText("Coffee shop");
+
+    const menuButtons = screen.getAllByRole("button", { name: "Open actions menu" });
+    await user.click(menuButtons[menuButtons.length - 1]);
+
+    const edit = screen.getByRole("button", { name: "Edit" });
+    const panel = document.querySelector('[data-actions-menu-panel="true"]');
+    const tableScrollWrapper = screen.getByText("Coffee shop").closest(".overflow-x-auto");
+
+    expect(panel).toBeTruthy();
+    expect(panel?.parentElement).toBe(document.body);
+    expect(tableScrollWrapper?.contains(edit)).toBe(false);
+    expect(edit).toBeVisible();
+  });
+
+  it("opens edit from the last row actions menu", async () => {
+    const user = userEvent.setup();
+    renderTransactionsPage();
+    await screen.findByText("Coffee shop");
+
+    const menuButtons = screen.getAllByRole("button", { name: "Open actions menu" });
+    await user.click(menuButtons[menuButtons.length - 1]);
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Edit transaction");
+    expect(screen.getByDisplayValue("Coffee shop")).toBeInTheDocument();
   });
 });
