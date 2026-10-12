@@ -1,55 +1,59 @@
-# Implementation Plan: Transactions row actions menu outside table scroll
+# Implementation Plan: Per-account import settings modal (Accounts page)
 
 ## Overview
 
-The transactions list wraps the table in `overflow-x-auto`, which clips the row actions popover. Extract a shared `ActionsMenu` UI primitive that portals the panel to `document.body`, positions it with `fixed` coordinates from the trigger, flips above the trigger when the viewport would clip below, and keeps dismiss behavior (outside click, Escape). Wire the main transactions table to use it; import preview tables are unchanged.
+Move CSV/XLSX column mapping off the full-width **Account import settings** card and into a per-account modal opened from an icon button on each row. Reuse existing import-mapping APIs and TanStack Query patterns; add dirty-state handling with a nested discard confirmation dialog (same pattern as delete account).
 
-Source spec: `specs/transactions-actions-menu-overflow.md`.
+Source spec: `specs/accounts-import-settings-modal.md`.
 
 ## Architecture Decisions
 
-- **New file:** `frontend/src/components/ui/actions-menu.tsx` — trigger slot + portaled panel, `data-actions-menu-root` on trigger wrapper and panel for outside-click detection.
-- **Positioning:** On open, measure trigger with `getBoundingClientRect()`, place panel below with `mt-1` gap; if `top + panelHeight > window.innerHeight`, place above the trigger. Recompute on `resize` and `scroll` (capture phase on `window` and scrollable ancestors if needed; at minimum `window` scroll/resize while open).
-- **Z-index:** Panel uses `z-50` so it stacks above the sticky table header (`z-10`).
-- **TransactionsPage:** Replace inline `absolute` menu markup with `ActionsMenu`; keep `openActionsMenuId` state and existing menu item handlers. Move or duplicate the document `mousedown` / `keydown` dismiss logic into the primitive so the page stays thin.
-- **No new dependencies:** React `createPortal` only; no Radix dropdown.
-- **Tests:** Extend `frontend/tests/TransactionsPage.test.tsx` — mock at least two transactions, open actions on the **last** row, assert the menu panel is a direct descendant of `document.body` (or not contained in the table overflow wrapper), and that Edit on the last row opens the edit dialog. Existing split-dialog tests must keep passing; update `openSplitDialog` if the trigger/menu structure changes (e.g. multiple "Open actions menu" buttons — use `getAllByRole` and pick last).
+- **Single file UI change:** `frontend/src/pages/AccountsPage.tsx` — no new shared component unless the page exceeds ~250 lines after the change (unlikely).
+- **State model:**
+  - `importSettingsAccount: Account | null` — which row opened the modal.
+  - `mappingBaseline` — snapshot of the five column strings when mapping data last synced for this open session (for dirty checks).
+  - `discardConfirmOpen: boolean` — nested dialog when user closes main import dialog while dirty.
+- **Query:** `useQuery` for import mapping with `enabled: Boolean(importSettingsAccount)`, key `["account-import-mapping", String(importSettingsAccount.id)]`. Reset local fields when `mapping` loads or when modal opens.
+- **Mutation:** `saveMapping` uses `importSettingsAccount.id` instead of `selectedAccountId`; `onSuccess` closes import modal, clears baseline, invalidates mapping query.
+- **Close flow:** `requestCloseImportModal()` — if dirty, set `discardConfirmOpen`; else clear `importSettingsAccount`. Wire `Dialog` `onOpenChange` on the import dialog to call this when `open` becomes false.
+- **Row control:** `FileSpreadsheet` from `lucide-react`, `Button variant="outline" size="icon"`, `aria-label={`Import settings for ${a.name}`}`, `title="Import settings"`.
+- **Loading:** While mapping fetch is in flight on first open, show short helper text in dialog or disable Save until loaded (match existing page behavior — no skeleton required if fields start empty then populate).
+- **Layout:** Remove second `Card` and `md:grid-cols-3` if only one card remains (use simple `div` with `gap-4` or single full-width card).
 
 ## Dependency Graph
 
 ```
-ActionsMenu primitive (portal + position + flip)
+AccountsPage.test.tsx (new expectations)
         │
-        ├── TransactionsPage integration (main list only)
-        │
-        └── Vitest: last-row menu + regression on split flow
+        └── AccountsPage.tsx (remove card, modal, discard, row icon)
 ```
 
-Task 1 is the failing test. Task 2 builds the primitive to satisfy it. Task 3 wires the page (can merge with Task 2 if done in one session after the test exists).
+No backend, no new dependencies. Sequential: tests first (red), then implementation (green).
 
 ## Task List
 
-### Phase 1: Test + primitive
+### Phase 1: Tests
 
-- [ ] Task 1: Last-row actions menu test (portal / visibility)
-- [ ] Task 2: `ActionsMenu` component
+- [ ] Task 1: Accounts import modal tests
 
-### Checkpoint: After Tasks 1–2
+### Checkpoint: After Task 1
 
-- [ ] Last-row test fails before portal, passes after
-- [ ] `cd frontend && pnpm test` passes
-- [ ] `cd frontend && pnpm run build` succeeds
+- [ ] New tests fail against current page (card still present / no row control)
+- [ ] Existing Add account / focus tests still run (may need mock `api.get` routing by URL)
 
-### Phase 2: Integration
+### Phase 2: Implementation
 
-- [ ] Task 3: Use `ActionsMenu` on main transactions table
+- [ ] Task 2: AccountsPage import modal and row trigger
+- [ ] Task 3: Dirty close + discard dialog
+
+Tasks 2–3 can be one commit/session if preferred; split only if Task 2 is done without discard first.
 
 ### Checkpoint: Spec complete
 
-- [ ] Success criteria in `specs/transactions-actions-menu-overflow.md` met
+- [ ] All success criteria in `specs/accounts-import-settings-modal.md` met
 - [ ] `cd frontend && pnpm test` passes
-- [ ] Manual check: last row menu fully visible in dev, horizontal table scroll still works
-- [ ] Review with human before commit
+- [ ] `cd frontend && pnpm run build` succeeds
+- [ ] Manual: open import settings from a row, save, edit and discard — Accounts page has no bottom import card
 
 Full task detail: `tasks/todo.md`.
 
@@ -57,15 +61,15 @@ Full task detail: `tasks/todo.md`.
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| happy-dom layout: zero-height panel before paint | Med | Measure panel after open in `requestAnimationFrame` or `useLayoutEffect`; fallback min height for flip calc |
-| Multiple rows → multiple triggers with same aria label | Med | Tests target last menu via `getAllByRole` + index or `within(lastRow)` |
-| Stale position after scroll while open | Low | Listen to `window` scroll/resize while open; close on outside click unchanged |
-| Split tests open first row menu | Low | Keep opening menu on first transaction in `openSplitDialog` |
+| `api.get` mock returns `[]` for all URLs | High | In tests, branch on path (`/accounts`, `/accounts/balances`, `/import-mapping`) |
+| Dirty false positive when mapping loads async | Med | Set baseline only after mapping applied to fields; don’t mark dirty until user input after baseline set |
+| Nested Dialog focus trap (import + discard) | Low | Close discard first; keep import dialog open until discard confirmed or cancelled |
+| `onOpenChange` fires on successful save | Low | Clear account and baseline in save `onSuccess` before close animation |
 
 ## Parallelization
 
-Sequential: Task 1 → Task 2 → Task 3. No parallel work.
+Sequential only: Task 1 → Tasks 2–3. No parallel work.
 
 ## Open Questions
 
-- None.
+- None (save label and validation resolved in spec).

@@ -1,90 +1,92 @@
-# Tasks: Transactions row actions menu outside table scroll
+# Tasks: Per-account import settings modal
 
-Source: `specs/transactions-actions-menu-overflow.md` and `tasks/plan.md`.
+Spec: `specs/accounts-import-settings-modal.md`  
+Plan: `tasks/plan.md`
 
-## Task 1: Last-row actions menu test (portal / visibility)
+---
 
-**Description:** Add a Transactions page test with two (or more) mocked transactions. Open the actions menu on the **last** row. Assert the menu panel is portaled outside the table overflow wrapper (e.g. panel under `document.body`, or not inside the element with the table border wrapper). Click Edit on that row and assert the edit dialog opens.
+## Task 1: Accounts import modal tests
+
+**Description:** Replace the test that expects the bottom “Account import settings” card with coverage for the row trigger, modal open/load, save, and discard-on-dirty-close. Extend `api.get` mock to return one account, balances payload, and import-mapping fields.
 
 **Acceptance criteria:**
 
-- [x] With multiple rows loaded, opening actions on the last row shows Edit (when applicable) and the menu node is not clipped inside the `overflow-x-auto` table wrapper.
-- [x] Edit on the last row opens the transaction edit dialog.
-- [x] Test fails on current inline `absolute` menu implementation (menu stays inside table cell / wrapper).
+- [ ] `screen.queryByText("Account import settings")` is not in the document after load.
+- [ ] Clicking `Import settings for {accountName}` opens a dialog whose title includes the account name.
+- [ ] Mapped column values from `GET /accounts/:id/import-mapping` appear in the dialog.
+- [ ] Editing and submitting “Save mapping” calls `api.put` with the expected body and closes the import dialog.
+- [ ] After editing, Cancel (or closing dialog) shows discard confirmation; confirming discard closes without `put`.
+- [ ] Existing tests for Add account and name-field focus still pass.
 
 **Verification:**
 
-- [ ] Tests pass after Tasks 2–3: `cd frontend && pnpm exec vitest run tests/TransactionsPage.test.tsx`
-- [ ] Build succeeds: `cd frontend && pnpm run build`
+- [ ] `cd frontend && pnpm test -- AccountsPage` — new tests fail before Task 2, pass after Task 3.
 
 **Dependencies:** None
 
 **Files likely touched:**
 
-- `frontend/tests/TransactionsPage.test.tsx`
+- `frontend/tests/AccountsPage.test.tsx`
 
-**Estimated scope:** Small: 1 file
+**Estimated scope:** Small (1 file)
 
-## Task 2: `ActionsMenu` component
+---
 
-**Description:** Add `frontend/src/components/ui/actions-menu.tsx`: controlled `open` / `onOpenChange`, trigger child, menu children, portal to `body`, fixed positioning from trigger rect, flip upward when viewport would clip below, outside click and Escape to close, `data-actions-menu-root` on trigger root and panel.
+## Task 2: AccountsPage import modal and row trigger
+
+**Description:** Remove the import settings card and page-level `selectedAccountId` / auto-select effect. Add per-row icon button and import settings `Dialog` with the five fields, intro copy, Cancel, and Save mapping. Wire query (enabled when modal open) and save mutation.
 
 **Acceptance criteria:**
 
-- [x] Menu panel renders via portal to `document.body` when open.
-- [x] Default placement is below trigger; flips above only when `bottom` would exceed viewport.
-- [x] `z-50`, same visual classes as current popover.
-- [x] Task 1 assertions pass when used from a minimal test render (or after Task 3).
+- [ ] Bottom import card removed; only “Your accounts” list card remains.
+- [ ] Each row has icon import control with accessible name including account name.
+- [ ] Modal title references the active account; form fields match previous placeholders/labels.
+- [ ] Save mapping calls `PUT /accounts/:id/import-mapping` and closes modal on success.
 
 **Verification:**
 
-- [ ] Tests pass: `cd frontend && pnpm exec vitest run tests/TransactionsPage.test.tsx`
-- [ ] Build succeeds: `cd frontend && pnpm run build`
+- [ ] Task 1 tests for card removal, open, and save pass (discard test may still fail).
 
-**Dependencies:** Task 1 (test defines expected behavior)
+**Dependencies:** Task 1 (tests written)
 
 **Files likely touched:**
 
-- `frontend/src/components/ui/actions-menu.tsx`
+- `frontend/src/pages/AccountsPage.tsx`
 
-**Estimated scope:** Small: 1 file
+**Estimated scope:** Medium (1 file, ~80–120 line net change)
 
-## Checkpoint: After Tasks 1–2
+---
 
-- [ ] Last-row menu test failed before portal and passes with component wired in page or test harness
-- [ ] `cd frontend && pnpm test` passes
-- [ ] `cd frontend && pnpm run build` succeeds
+## Task 3: Dirty close + discard dialog
 
-## Task 3: Use `ActionsMenu` on main transactions table
-
-**Description:** Replace the inline three-dot menu in `TransactionsPage` (main list only) with `ActionsMenu`. Remove redundant page-level dismiss effects if fully handled by the primitive. Keep `openActionsMenuId` and all Edit / Split / Delete handlers unchanged.
+**Description:** Track mapping baseline when data syncs for the open modal. Intercept close via Cancel and import dialog `onOpenChange`. Show second dialog “Discard changes?” with Keep editing / Discard; Discard clears state and closes import modal without saving.
 
 **Acceptance criteria:**
 
-- [x] Main transactions table uses `ActionsMenu` for row actions.
-- [x] Import preview tables unchanged.
-- [x] One menu open at a time; click-outside and Escape still work.
-- [x] All `TransactionsPage` tests pass, including split dialog suite.
+- [ ] Closing with no edits does not show discard dialog.
+- [ ] Closing with edits shows discard confirmation; Keep editing returns to import modal with edits intact.
+- [ ] Discard closes import modal without `PUT`.
+- [ ] All Task 1 tests pass.
 
 **Verification:**
 
-- [ ] Tests pass: `cd frontend && pnpm test`
-- [ ] Build succeeds: `cd frontend && pnpm run build`
-- [ ] Manual check: open menu on last row in dev — full menu visible, no inner vertical scroll on table wrapper
+- [ ] `cd frontend && pnpm test`
+- [ ] `cd frontend && pnpm run build`
+- [ ] Manual: `pnpm run dev` → Accounts → import icon → edit → Escape → discard flow
 
 **Dependencies:** Task 2
 
 **Files likely touched:**
 
-- `frontend/src/pages/TransactionsPage.tsx`
-- `frontend/tests/TransactionsPage.test.tsx` (only if selectors need adjustment)
+- `frontend/src/pages/AccountsPage.tsx`
 
-**Estimated scope:** Small: 1–2 files
+**Estimated scope:** Small (same file)
 
-## Checkpoint: After Task 3
+---
 
-- [x] Every success criterion in `specs/transactions-actions-menu-overflow.md` satisfied
-- [x] `cd frontend && pnpm test` passes
-- [x] `cd frontend && pnpm run build` succeeds
-- [ ] Manual check on Transactions page (last row menu + horizontal scroll on narrow viewport)
-- [ ] Review with human before `[specs]` / `[tech]` commits
+## Checkpoint: After Tasks 1–3
+
+- [ ] `specs/accounts-import-settings-modal.md` success criteria satisfied
+- [ ] `cd frontend && pnpm test` passes
+- [ ] `cd frontend && pnpm run build` succeeds
+- [ ] Human review before `[specs]` / `[tech]` commits
