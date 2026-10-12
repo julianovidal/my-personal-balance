@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AccountsPage } from "@/pages/AccountsPage";
 
@@ -48,6 +49,22 @@ describe("AccountsPage", () => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
     expect(screen.getByText("Add account", { selector: "*[role='heading'], h2, [data-slot='dialog-title']" })).toBeInTheDocument();
+  });
+
+  it("keeps focus in the account name field while typing", async () => {
+    const user = userEvent.setup();
+    renderAccountsPage();
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "Add account" })[0]).toBeInTheDocument();
+    });
+
+    await user.click(screen.getAllByRole("button", { name: "Add account" })[0]);
+    const dialog = await screen.findByRole("dialog");
+    const name = within(dialog).getByRole("textbox");
+    await user.type(name, "Checking");
+
+    expect(name).toHaveValue("Checking");
+    expect(name).toHaveFocus();
   });
 
   it("renders the import mapping form with account label", async () => {

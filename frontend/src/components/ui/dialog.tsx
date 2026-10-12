@@ -44,12 +44,14 @@ const DialogContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
   ({ className, children, ...props }, ref) => {
     const { open, onOpenChange } = useDialog()
     const contentRef = React.useRef<HTMLDivElement | null>(null)
+    const onOpenChangeRef = React.useRef(onOpenChange)
+    onOpenChangeRef.current = onOpenChange
 
     React.useEffect(() => {
       if (!open) return
 
       const onKeyDown = (event: KeyboardEvent) => {
-        if (event.key === "Escape") onOpenChange(false)
+        if (event.key === "Escape") onOpenChangeRef.current(false)
       }
 
       document.addEventListener("keydown", onKeyDown)
@@ -61,7 +63,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
         document.removeEventListener("keydown", onKeyDown)
         document.body.style.overflow = previousOverflow
       }
-    }, [open, onOpenChange])
+    }, [open])
 
     if (!open) return null
 
