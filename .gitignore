@@ -14,6 +14,7 @@ dist/
 # IDE
 .vscode/
 .DS_Store
+.cursor/
 
 # Classifier models
 classifier/data/*.joblib
