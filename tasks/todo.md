@@ -1,92 +1,66 @@
-# Tasks: Per-account import settings modal
+# Tasks: Import preview gating on unconfigured mapping
 
-Spec: `specs/accounts-import-settings-modal.md`  
+Spec: `specs/import-preview-gating-unconfigured-mapping.md`
 Plan: `tasks/plan.md`
 
 ---
 
-## Task 1: Accounts import modal tests
+## Task 1: Import dialog gating tests
 
-**Description:** Replace the test that expects the bottom “Account import settings” card with coverage for the row trigger, modal open/load, save, and discard-on-dirty-close. Extend `api.get` mock to return one account, balances payload, and import-mapping fields.
+**Description:** Add a new `describe("TransactionsPage import dialog")` block to `frontend/tests/TransactionsPage.test.tsx` covering the three gating states. Mock `api.get` to serve `/accounts`, `/tags`, the transactions list, and `/accounts/:id/import-mapping` (all-null response for the unconfigured account, populated columns for the configured one). Tests: open the import dialog and assert the disabled Preview import button with no account selected; select the unconfigured account and assert the warning plus an Accounts link; select the configured account and assert the button is enabled with no warning.
 
 **Acceptance criteria:**
 
-- [ ] `screen.queryByText("Account import settings")` is not in the document after load.
-- [ ] Clicking `Import settings for {accountName}` opens a dialog whose title includes the account name.
-- [ ] Mapped column values from `GET /accounts/:id/import-mapping` appear in the dialog.
-- [ ] Editing and submitting “Save mapping” calls `api.put` with the expected body and closes the import dialog.
-- [ ] After editing, Cancel (or closing dialog) shows discard confirmation; confirming discard closes without `put`.
-- [ ] Existing tests for Add account and name-field focus still pass.
+- [ ] Dialog opens with **Preview import** disabled and no warning when no account is selected.
+- [ ] Selecting an account whose mapping returns all-null columns shows the warning text "This account has no import settings configured yet" and keeps **Preview import** disabled.
+- [ ] The warning contains a link pointing to `/accounts`.
+- [ ] Selecting an account whose mapping has non-null columns enables **Preview import** and hides the warning.
+- [ ] Existing split-dialog tests in the same file still pass.
 
 **Verification:**
 
-- [ ] `cd frontend && pnpm test -- AccountsPage` — new tests fail before Task 2, pass after Task 3.
+- [ ] `cd frontend && pnpm test -- TransactionsPage` — new tests fail before Task 2, pass after.
 
 **Dependencies:** None
 
 **Files likely touched:**
 
-- `frontend/tests/AccountsPage.test.tsx`
+- `frontend/tests/TransactionsPage.test.tsx`
 
 **Estimated scope:** Small (1 file)
 
 ---
 
-## Task 2: AccountsPage import modal and row trigger
+## Task 2: Mapping query and gating in TransactionsPage
 
-**Description:** Remove the import settings card and page-level `selectedAccountId` / auto-select effect. Add per-row icon button and import settings `Dialog` with the five fields, intro copy, Cancel, and Save mapping. Wire query (enabled when modal open) and save mutation.
-
-**Acceptance criteria:**
-
-- [ ] Bottom import card removed; only “Your accounts” list card remains.
-- [ ] Each row has icon import control with accessible name including account name.
-- [ ] Modal title references the active account; form fields match previous placeholders/labels.
-- [ ] Save mapping calls `PUT /accounts/:id/import-mapping` and closes modal on success.
-
-**Verification:**
-
-- [ ] Task 1 tests for card removal, open, and save pass (discard test may still fail).
-
-**Dependencies:** Task 1 (tests written)
-
-**Files likely touched:**
-
-- `frontend/src/pages/AccountsPage.tsx`
-
-**Estimated scope:** Medium (1 file, ~80–120 line net change)
-
----
-
-## Task 3: Dirty close + discard dialog
-
-**Description:** Track mapping baseline when data syncs for the open modal. Intercept close via Cancel and import dialog `onOpenChange`. Show second dialog “Discard changes?” with Keep editing / Discard; Discard clears state and closes import modal without saving.
+**Description:** Add the `["account-import-mapping", uploadAccountId]` query to `TransactionsPage` (enabled only while the import dialog is open), derive `isMappingConfigured`, disable **Preview import** unless configured, and render the warning — with a `Link` to `/accounts` that closes the dialog — when an account is selected but unconfigured.
 
 **Acceptance criteria:**
 
-- [ ] Closing with no edits does not show discard dialog.
-- [ ] Closing with edits shows discard confirmation; Keep editing returns to import modal with edits intact.
-- [ ] Discard closes import modal without `PUT`.
-- [ ] All Task 1 tests pass.
+- [ ] `Preview import` button: `disabled={!isMappingConfigured || previewUpload.isPending}`.
+- [ ] Warning renders only when an account is selected and the mapping is unconfigured; contains a `Link` to `/accounts` that closes the dialog.
+- [ ] Mapping query is not fetched when the dialog is closed (network condition verified by existing tests).
+- [ ] File input and the rest of the import form behave unchanged in the unconfigured state.
 
 **Verification:**
 
-- [ ] `cd frontend && pnpm test`
-- [ ] `cd frontend && pnpm run build`
-- [ ] Manual: `pnpm run dev` → Accounts → import icon → edit → Escape → discard flow
+- [ ] `cd frontend && pnpm test` passes
+- [ ] `cd frontend && pnpm run build` succeeds
+- [ ] Manual: import dialog → unconfigured account shows warning + disabled button; configured account enables the button
 
-**Dependencies:** Task 2
+**Dependencies:** Task 1
 
 **Files likely touched:**
 
-- `frontend/src/pages/AccountsPage.tsx`
+- `frontend/src/pages/TransactionsPage.tsx`
 
-**Estimated scope:** Small (same file)
+**Estimated scope:** Small (1 file)
 
 ---
 
-## Checkpoint: After Tasks 1–3
+## Checkpoint: After Tasks 1–2
 
-- [ ] `specs/accounts-import-settings-modal.md` success criteria satisfied
+- [ ] `specs/import-preview-gating-unconfigured-mapping.md` success criteria satisfied
 - [ ] `cd frontend && pnpm test` passes
 - [ ] `cd frontend && pnpm run build` succeeds
 - [ ] Human review before `[specs]` / `[tech]` commits
