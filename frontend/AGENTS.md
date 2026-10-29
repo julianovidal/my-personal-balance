@@ -54,6 +54,7 @@ src/
 ├── api/          # API client modules
 ├── components/   # Reusable UI components
 ├── contexts/     # React context providers
+├── hooks/        # Shared TanStack Query hooks
 ├── lib/          # Utilities and theme
 ├── pages/        # Page-level components
 └── types/        # TypeScript type definitions
