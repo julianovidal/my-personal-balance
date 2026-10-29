@@ -29,22 +29,22 @@ No backend, no new dependencies. Sequential: tests first (red), then implementat
 
 ### Phase 1: Tests
 
-- [ ] Task 1: Import dialog gating tests in `TransactionsPage.test.tsx`
+- [x] Task 1: Import dialog gating tests in `TransactionsPage.test.tsx`
 
 ### Checkpoint: After Task 1
 
-- [ ] New gating tests fail against current code (button not gated yet)
-- [ ] Existing split-dialog tests still pass (mapping query is dormant until the import dialog opens)
+- [x] New gating tests fail against current code (button not gated yet)
+- [x] Existing split-dialog tests still pass (mapping query is dormant until the import dialog opens)
 
 ### Phase 2: Implementation
 
-- [ ] Task 2: Mapping query, gating flag, and warning in `TransactionsPage.tsx`
+- [x] Task 2: Mapping query, gating flag, and warning in `TransactionsPage.tsx`
 
 ### Checkpoint: Complete
 
-- [ ] All success criteria in `specs/import-preview-gating-unconfigured-mapping.md` met
-- [ ] `cd frontend && pnpm test` passes
-- [ ] `cd frontend && pnpm run build` succeeds
+- [x] All success criteria in `specs/import-preview-gating-unconfigured-mapping.md` met
+- [x] `cd frontend && pnpm test` passes
+- [x] `cd frontend && pnpm run build` succeeds
 - [ ] Manual: `pnpm run dev` → Transactions → Import transactions → select unconfigured account (warning + disabled) → configured account (enabled)
 
 Full task detail: `tasks/todo.md`.
