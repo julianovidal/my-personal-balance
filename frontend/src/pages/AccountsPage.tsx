@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { formatMoney } from "@/lib/utils";
+import { useAccountImportMapping } from "@/hooks/useAccountImportMapping";
 import { Account, AccountImportMapping, AccountsBalanceResponse } from "@/types";
 
 const CURRENCIES = ["EUR", "USD", "BRL"] as const;
@@ -88,15 +89,10 @@ export function AccountsPage() {
   });
   const isAccountsLoading = !balances && accounts.length === 0;
 
-  const { data: mapping, isFetching: isMappingLoading } = useQuery({
-    queryKey: ["account-import-mapping", importAccountId],
-    enabled: Boolean(importSettingsAccount),
-    refetchOnWindowFocus: false,
-    queryFn: async () => {
-      const res = await api.get<AccountImportMapping>(`/accounts/${importAccountId}/import-mapping`);
-      return res.data;
-    }
-  });
+  const { data: mapping, isFetching: isMappingLoading } = useAccountImportMapping(
+    importAccountId,
+    Boolean(importSettingsAccount)
+  );
 
   useEffect(() => {
     if (!importSettingsAccount) {
