@@ -1,31 +1,26 @@
-# Implementation Plan: Per-account import settings modal (Accounts page)
+# Implementation Plan: Disable import preview until the account's import settings are configured
 
 ## Overview
 
-Move CSV/XLSX column mapping off the full-width **Account import settings** card and into a per-account modal opened from an icon button on each row. Reuse existing import-mapping APIs and TanStack Query patterns; add dirty-state handling with a nested discard confirmation dialog (same pattern as delete account).
+Frontend-only gating of the import dialog on `TransactionsPage`: the **Preview import** button is disabled by default and enabled only when the selected account has a saved import mapping. While an unconfigured account is selected, a warning points the user to Accounts → Import Settings. Reuses `GET /accounts/:id/import-mapping` with the same TanStack Query pattern as `AccountsPage`.
 
-Source spec: `specs/accounts-import-settings-modal.md`.
+Source spec: `specs/import-preview-gating-unconfigured-mapping.md`.
 
 ## Architecture Decisions
 
-- **Single file UI change:** `frontend/src/pages/AccountsPage.tsx` — no new shared component unless the page exceeds ~250 lines after the change (unlikely).
-- **State model:**
-  - `importSettingsAccount: Account | null` — which row opened the modal.
-  - `mappingBaseline` — snapshot of the five column strings when mapping data last synced for this open session (for dirty checks).
-  - `discardConfirmOpen: boolean` — nested dialog when user closes main import dialog while dirty.
-- **Query:** `useQuery` for import mapping with `enabled: Boolean(importSettingsAccount)`, key `["account-import-mapping", String(importSettingsAccount.id)]`. Reset local fields when `mapping` loads or when modal opens.
-- **Mutation:** `saveMapping` uses `importSettingsAccount.id` instead of `selectedAccountId`; `onSuccess` closes import modal, clears baseline, invalidates mapping query.
-- **Close flow:** `requestCloseImportModal()` — if dirty, set `discardConfirmOpen`; else clear `importSettingsAccount`. Wire `Dialog` `onOpenChange` on the import dialog to call this when `open` becomes false.
-- **Row control:** `FileSpreadsheet` from `lucide-react`, `Button variant="outline" size="icon"`, `aria-label={`Import settings for ${a.name}`}`, `title="Import settings"`.
-- **Loading:** While mapping fetch is in flight on first open, show short helper text in dialog or disable Save until loaded (match existing page behavior — no skeleton required if fields start empty then populate).
-- **Layout:** Remove second `Card` and `md:grid-cols-3` if only one card remains (use simple `div` with `gap-4` or single full-width card).
+- **Frontend-only:** no backend changes. The backend `GET` returns all-null columns when no mapping was ever saved, so "any column non-null" is the configured test.
+- **Single query on TransactionsPage:** `useQuery` with key `["account-import-mapping", uploadAccountId]`, `enabled: Boolean(uploadAccountId) && isImportModalOpen`, `refetchOnWindowFocus: false` — mirrors `AccountsPage.tsx` (lines 91–99).
+- **Derived flag, no extra state:** `isMappingConfigured` is computed from the query result; it follows the query so switching accounts needs no reset logic.
+- **Button disabled by default:** `disabled={!isMappingConfigured || previewUpload.isPending}` covers all three states (no account / unconfigured / configured).
+- **Warning with a `Link` to `/accounts`** that closes the dialog on click — matches the existing pattern of `Link` usage in `Layout.tsx`.
+- **Confirm import untouched:** it already depends on a preview, and a preview can no longer be produced without a mapping.
 
 ## Dependency Graph
 
 ```
-AccountsPage.test.tsx (new expectations)
+TransactionsPage.test.tsx (new gating tests)
         │
-        └── AccountsPage.tsx (remove card, modal, discard, row icon)
+        └── TransactionsPage.tsx (mapping query + gating + warning)
 ```
 
 No backend, no new dependencies. Sequential: tests first (red), then implementation (green).
@@ -34,42 +29,39 @@ No backend, no new dependencies. Sequential: tests first (red), then implementat
 
 ### Phase 1: Tests
 
-- [ ] Task 1: Accounts import modal tests
+- [ ] Task 1: Import dialog gating tests in `TransactionsPage.test.tsx`
 
 ### Checkpoint: After Task 1
 
-- [ ] New tests fail against current page (card still present / no row control)
-- [ ] Existing Add account / focus tests still run (may need mock `api.get` routing by URL)
+- [ ] New gating tests fail against current code (button not gated yet)
+- [ ] Existing split-dialog tests still pass (mapping query is dormant until the import dialog opens)
 
 ### Phase 2: Implementation
 
-- [ ] Task 2: AccountsPage import modal and row trigger
-- [ ] Task 3: Dirty close + discard dialog
+- [ ] Task 2: Mapping query, gating flag, and warning in `TransactionsPage.tsx`
 
-Tasks 2–3 can be one commit/session if preferred; split only if Task 2 is done without discard first.
+### Checkpoint: Complete
 
-### Checkpoint: Spec complete
-
-- [ ] All success criteria in `specs/accounts-import-settings-modal.md` met
+- [ ] All success criteria in `specs/import-preview-gating-unconfigured-mapping.md` met
 - [ ] `cd frontend && pnpm test` passes
 - [ ] `cd frontend && pnpm run build` succeeds
-- [ ] Manual: open import settings from a row, save, edit and discard — Accounts page has no bottom import card
+- [ ] Manual: `pnpm run dev` → Transactions → Import transactions → select unconfigured account (warning + disabled) → configured account (enabled)
 
 Full task detail: `tasks/todo.md`.
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
-|------|--------|------------|
-| `api.get` mock returns `[]` for all URLs | High | In tests, branch on path (`/accounts`, `/accounts/balances`, `/import-mapping`) |
-| Dirty false positive when mapping loads async | Med | Set baseline only after mapping applied to fields; don’t mark dirty until user input after baseline set |
-| Nested Dialog focus trap (import + discard) | Low | Close discard first; keep import dialog open until discard confirmed or cancelled |
-| `onOpenChange` fires on successful save | Low | Clear account and baseline in save `onSuccess` before close animation |
+|------|--------|-----------|
+| `api.get` mock fallback (`return { data: [] }`) collides with the mapping response shape in tests | Med | New describe block branches on `url.includes("/import-mapping")` in its own `beforeEach` |
+| Warning flashes while mapping is in flight (query fetching, flag still false) | Low | Acceptable: fetch is fast and local; could render warning only when `!isMappingLoading` if it proves noisy |
+| React-query invalidation when mapping saved on Accounts page | Low | Mapping query has `refetchOnWindowFocus: false`; dialog re-open re-fetches because `enabled` toggles with `isImportModalOpen` — verify manually |
+| Existing split tests share the mocked `api.get` | Low | New tests use their own `beforeEach` mock setup; split describe block untouched |
 
 ## Parallelization
 
-Sequential only: Task 1 → Tasks 2–3. No parallel work.
+Sequential only: Task 1 → Task 2. No parallel work.
 
 ## Open Questions
 
-- None (save label and validation resolved in spec).
+- None.
