@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -239,5 +239,109 @@ describe("TransactionsPage row actions menu", () => {
 
     expect(await screen.findByRole("dialog")).toHaveTextContent("Edit transaction");
     expect(screen.getByDisplayValue("Coffee shop")).toBeInTheDocument();
+  });
+});
+
+describe("TransactionsPage import dialog gating", () => {
+  const unconfiguredMapping = {
+    account_id: 1,
+    date_column: null,
+    description_column: null,
+    amount_column: null,
+    currency_column: null,
+    tag_id_column: null
+  };
+
+  const configuredMapping = {
+    account_id: 2,
+    date_column: "Date",
+    description_column: "Description",
+    amount_column: "Amount",
+    currency_column: "Currency",
+    tag_id_column: null
+  };
+
+  beforeEach(() => {
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url === "/accounts") {
+        return {
+          data: [
+            { id: 1, name: "Unconfigured", currency: "EUR", user_id: 1 },
+            { id: 2, name: "Configured", currency: "EUR", user_id: 1 }
+          ]
+        };
+      }
+      if (url === "/tags") {
+        return { data: [] };
+      }
+      if (url === "/accounts/1/import-mapping") {
+        return { data: unconfiguredMapping };
+      }
+      if (url === "/accounts/2/import-mapping") {
+        return { data: configuredMapping };
+      }
+      if (url.startsWith("/transactions?")) {
+        return {
+          data: {
+            items: [parentTransaction],
+            total: 1,
+            page: 1,
+            page_size: 20,
+            total_pages: 1
+          }
+        };
+      }
+      if (url.includes("/summary")) {
+        return { data: { overall: { income: "0.00", expenses: "0.00", net: "0.00" }, by_account: [] } };
+      }
+      if (url.includes("/analytics")) {
+        return { data: { by_tag: [], by_account: [] } };
+      }
+      return { data: [] };
+    });
+  });
+
+  async function openImportDialog(user: ReturnType<typeof userEvent.setup>) {
+    renderTransactionsPage();
+    await screen.findByText("Grocery store");
+    await user.click(screen.getByRole("button", { name: "Import transactions" }));
+    return screen.findByRole("dialog");
+  }
+
+  async function selectImportAccount(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement, name: string) {
+    const accountSelect = within(dialog).getAllByRole("combobox")[0];
+    await user.selectOptions(accountSelect, name);
+    return accountSelect;
+  }
+
+  it("disables Preview import with no warning when no account is selected", async () => {
+    const user = userEvent.setup();
+    const dialog = await openImportDialog(user);
+
+    const previewButton = within(dialog).getByRole("button", { name: "Preview import" });
+    expect(previewButton).toBeDisabled();
+    expect(within(dialog).queryByText(/import settings/i)).not.toBeInTheDocument();
+    expect(vi.mocked(api.get)).not.toHaveBeenCalledWith("/accounts/1/import-mapping");
+  });
+
+  it("shows the warning and keeps Preview import disabled for an unconfigured account", async () => {
+    const user = userEvent.setup();
+    const dialog = await openImportDialog(user);
+    await selectImportAccount(user, dialog, "1");
+
+    expect(await within(dialog).findByText(/no import settings configured yet/i)).toBeInTheDocument();
+    const previewButton = within(dialog).getByRole("button", { name: "Preview import" });
+    expect(previewButton).toBeDisabled();
+    expect(within(dialog).getByRole("link", { name: "Accounts" })).toHaveAttribute("href", "/accounts");
+  });
+
+  it("enables Preview import with no warning for a configured account", async () => {
+    const user = userEvent.setup();
+    const dialog = await openImportDialog(user);
+    await selectImportAccount(user, dialog, "2");
+
+    const previewButton = within(dialog).getByRole("button", { name: "Preview import" });
+    await waitFor(() => expect(previewButton).toBeEnabled());
+    expect(within(dialog).queryByText(/no import settings configured yet/i)).not.toBeInTheDocument();
   });
 });
