@@ -7,6 +7,8 @@ Plan: `tasks/plan.md`
 
 ## Task 1: Import dialog gating tests
 
+**Status:** Complete
+
 **Description:** Add a new `describe("TransactionsPage import dialog")` block to `frontend/tests/TransactionsPage.test.tsx` covering the three gating states. Mock `api.get` to serve `/accounts`, `/tags`, the transactions list, and `/accounts/:id/import-mapping` (all-null response for the unconfigured account, populated columns for the configured one). Tests: open the import dialog and assert the disabled Preview import button with no account selected; select the unconfigured account and assert the warning plus an Accounts link; select the configured account and assert the button is enabled with no warning.
 
 **Acceptance criteria:**
@@ -32,6 +34,8 @@ Plan: `tasks/plan.md`
 ---
 
 ## Task 2: Mapping query and gating in TransactionsPage
+
+**Status:** Complete
 
 **Description:** Add the `["account-import-mapping", uploadAccountId]` query to `TransactionsPage` (enabled only while the import dialog is open), derive `isMappingConfigured`, disable **Preview import** unless configured, and render the warning — with a `Link` to `/accounts` that closes the dialog — when an account is selected but unconfigured.
 

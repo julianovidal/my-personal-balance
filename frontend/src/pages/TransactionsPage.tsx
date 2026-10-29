@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2, MoreHorizontal, SearchX } from "lucide-react";
 import { api } from "@/api/client";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatMoney } from "@/lib/utils";
 import {
   Account,
+  AccountImportMapping,
   ImportPreviewResponse,
   MonthlyAnalyticsResponse,
   MonthlySummaryResponse,
@@ -235,6 +236,21 @@ export function TransactionsPage() {
     queryKey: ["tags"],
     queryFn: async () => (await api.get<Tag[]>("/tags")).data
   });
+
+  const { data: importMapping, isPending: isMappingPending } = useQuery({
+    queryKey: ["account-import-mapping", uploadAccountId],
+    enabled: Boolean(uploadAccountId) && isImportModalOpen,
+    refetchOnWindowFocus: false,
+    queryFn: async () => (await api.get<AccountImportMapping>(`/accounts/${uploadAccountId}/import-mapping`)).data
+  });
+
+  const isMappingConfigured = Boolean(
+    importMapping &&
+      [importMapping.date_column, importMapping.description_column, importMapping.amount_column, importMapping.currency_column, importMapping.tag_id_column].some(
+        (column) => column !== null
+      )
+  );
+  const showMappingWarning = Boolean(uploadAccountId) && !isMappingPending && !isMappingConfigured;
 
   const { data: txResponse, isLoading: isTransactionsLoading } = useQuery({
     queryKey: ["transactions", dateFrom, dateTo, accountFilter, tagFilter, textFilter, page, pageSize],
@@ -1019,7 +1035,25 @@ export function TransactionsPage() {
                 required
               />
             </div>
-            <Button type="submit" className="w-full">Preview import</Button>
+            {showMappingWarning ? (
+              <p className="text-sm text-muted-foreground">
+                This account has no import settings configured yet. Set them under{" "}
+                <Link
+                  to="/accounts"
+                  className="underline"
+                  onClick={() => {
+                    setIsImportModalOpen(false);
+                    resetImportForm();
+                  }}
+                >
+                  Accounts
+                </Link>{" "}
+                → Import Settings first.
+              </p>
+            ) : null}
+            <Button type="submit" className="w-full" disabled={!isMappingConfigured || previewUpload.isPending}>
+              Preview import
+            </Button>
           </form>
 
           {importPreview ? (
