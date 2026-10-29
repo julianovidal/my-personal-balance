@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { api } from "@/api/client";
 import { TransactionsPage } from "@/pages/TransactionsPage";
-import { Transaction } from "@/types";
+import { AccountImportMapping, Transaction } from "@/types";
 
 const parentTransaction: Transaction = {
   id: 1,
@@ -261,23 +261,35 @@ describe("TransactionsPage import dialog gating", () => {
     tag_id_column: null
   };
 
-  beforeEach(() => {
+  const accounts = [
+    { id: 1, name: "Unconfigured", currency: "EUR", user_id: 1 },
+    { id: 2, name: "Configured", currency: "EUR", user_id: 1 }
+  ];
+
+  function mockApiRoutes(deferMappingFor?: "1" | "2") {
+    let resolveDeferred: ((value: { data: AccountImportMapping }) => void) | null = null;
+
     vi.mocked(api.get).mockImplementation(async (url: string) => {
       if (url === "/accounts") {
-        return {
-          data: [
-            { id: 1, name: "Unconfigured", currency: "EUR", user_id: 1 },
-            { id: 2, name: "Configured", currency: "EUR", user_id: 1 }
-          ]
-        };
+        return { data: accounts };
       }
       if (url === "/tags") {
         return { data: [] };
       }
       if (url === "/accounts/1/import-mapping") {
+        if (deferMappingFor === "1") {
+          return new Promise<{ data: AccountImportMapping }>((resolve) => {
+            resolveDeferred = resolve;
+          });
+        }
         return { data: unconfiguredMapping };
       }
       if (url === "/accounts/2/import-mapping") {
+        if (deferMappingFor === "2") {
+          return new Promise<{ data: AccountImportMapping }>((resolve) => {
+            resolveDeferred = resolve;
+          });
+        }
         return { data: configuredMapping };
       }
       if (url.startsWith("/transactions?")) {
@@ -299,6 +311,16 @@ describe("TransactionsPage import dialog gating", () => {
       }
       return { data: [] };
     });
+
+    return {
+      resolveMapping: () => {
+        resolveDeferred?.({ data: deferMappingFor === "2" ? configuredMapping : unconfiguredMapping });
+      }
+    };
+  }
+
+  beforeEach(() => {
+    mockApiRoutes();
   });
 
   async function openImportDialog(user: ReturnType<typeof userEvent.setup>) {
@@ -343,5 +365,30 @@ describe("TransactionsPage import dialog gating", () => {
     const previewButton = within(dialog).getByRole("button", { name: "Preview import" });
     await waitFor(() => expect(previewButton).toBeEnabled());
     expect(within(dialog).queryByText(/no import settings configured yet/i)).not.toBeInTheDocument();
+  });
+
+  it("does not show the warning while the mapping is still loading", async () => {
+    const user = userEvent.setup();
+    const deferred = mockApiRoutes("1");
+    const dialog = await openImportDialog(user);
+    await selectImportAccount(user, dialog, "1");
+
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith("/accounts/1/import-mapping"));
+    expect(within(dialog).queryByText(/no import settings configured yet/i)).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Preview import" })).toBeDisabled();
+
+    deferred.resolveMapping();
+    expect(await within(dialog).findByText(/no import settings configured yet/i)).toBeInTheDocument();
+  });
+
+  it("closes the import dialog when the Accounts link is clicked", async () => {
+    const user = userEvent.setup();
+    const dialog = await openImportDialog(user);
+    await selectImportAccount(user, dialog, "1");
+    await within(dialog).findByText(/no import settings configured yet/i);
+
+    await user.click(within(dialog).getByRole("link", { name: "Accounts" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });

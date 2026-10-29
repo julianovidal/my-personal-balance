@@ -13,9 +13,9 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatMoney } from "@/lib/utils";
+import { useAccountImportMapping } from "@/hooks/useAccountImportMapping";
 import {
   Account,
-  AccountImportMapping,
   ImportPreviewResponse,
   MonthlyAnalyticsResponse,
   MonthlySummaryResponse,
@@ -237,12 +237,10 @@ export function TransactionsPage() {
     queryFn: async () => (await api.get<Tag[]>("/tags")).data
   });
 
-  const { data: importMapping, isPending: isMappingPending } = useQuery({
-    queryKey: ["account-import-mapping", uploadAccountId],
-    enabled: Boolean(uploadAccountId) && isImportModalOpen,
-    refetchOnWindowFocus: false,
-    queryFn: async () => (await api.get<AccountImportMapping>(`/accounts/${uploadAccountId}/import-mapping`)).data
-  });
+  const { data: importMapping, isPending: isMappingPending } = useAccountImportMapping(
+    uploadAccountId,
+    isImportModalOpen
+  );
 
   const isMappingConfigured = Boolean(
     importMapping &&
