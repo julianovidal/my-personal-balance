@@ -13,15 +13,15 @@ Plan: `tasks/plan.md`
 
 **Acceptance criteria:**
 
-- [ ] Dialog opens with **Preview import** disabled and no warning when no account is selected.
-- [ ] Selecting an account whose mapping returns all-null columns shows the warning text "This account has no import settings configured yet" and keeps **Preview import** disabled.
-- [ ] The warning contains a link pointing to `/accounts`.
-- [ ] Selecting an account whose mapping has non-null columns enables **Preview import** and hides the warning.
-- [ ] Existing split-dialog tests in the same file still pass.
+- [x] Dialog opens with **Preview import** disabled and no warning when no account is selected.
+- [x] Selecting an account whose mapping returns all-null columns shows the warning text "This account has no import settings configured yet" and keeps **Preview import** disabled.
+- [x] The warning contains a link pointing to `/accounts`.
+- [x] Selecting an account whose mapping has non-null columns enables **Preview import** and hides the warning.
+- [x] Existing split-dialog tests in the same file still pass.
 
 **Verification:**
 
-- [ ] `cd frontend && pnpm test -- TransactionsPage` — new tests fail before Task 2, pass after.
+- [x] `cd frontend && pnpm test -- TransactionsPage` — new tests fail before Task 2, pass after.
 
 **Dependencies:** None
 
@@ -41,15 +41,15 @@ Plan: `tasks/plan.md`
 
 **Acceptance criteria:**
 
-- [ ] `Preview import` button: `disabled={!isMappingConfigured || previewUpload.isPending}`.
-- [ ] Warning renders only when an account is selected and the mapping is unconfigured; contains a `Link` to `/accounts` that closes the dialog.
-- [ ] Mapping query is not fetched when the dialog is closed (network condition verified by existing tests).
-- [ ] File input and the rest of the import form behave unchanged in the unconfigured state.
+- [x] `Preview import` button: `disabled={!isMappingConfigured || previewUpload.isPending}`.
+- [x] Warning renders only when an account is selected and the mapping is unconfigured; contains a `Link` to `/accounts` that closes the dialog.
+- [x] Mapping query is not fetched when the dialog is closed (network condition verified by existing tests).
+- [x] File input and the rest of the import form behave unchanged in the unconfigured state.
 
 **Verification:**
 
-- [ ] `cd frontend && pnpm test` passes
-- [ ] `cd frontend && pnpm run build` succeeds
+- [x] `cd frontend && pnpm test` passes
+- [x] `cd frontend && pnpm run build` succeeds
 - [ ] Manual: import dialog → unconfigured account shows warning + disabled button; configured account enables the button
 
 **Dependencies:** Task 1
@@ -64,7 +64,7 @@ Plan: `tasks/plan.md`
 
 ## Checkpoint: After Tasks 1–2
 
-- [ ] `specs/import-preview-gating-unconfigured-mapping.md` success criteria satisfied
-- [ ] `cd frontend && pnpm test` passes
-- [ ] `cd frontend && pnpm run build` succeeds
+- [x] `specs/import-preview-gating-unconfigured-mapping.md` success criteria satisfied
+- [x] `cd frontend && pnpm test` passes
+- [x] `cd frontend && pnpm run build` succeeds
 - [ ] Human review before `[specs]` / `[tech]` commits
