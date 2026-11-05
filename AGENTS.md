@@ -162,6 +162,7 @@ Applying a suggestion is `PUT /transactions/:id` on the backend client. That inv
 - Transfers are paired rows sharing `transfer_group_id`. All-accounts views must not double-count a pair.
 - Splits are child rows pointing at `parent_transaction_id`.
 - Behavior changes get a note under `specs/` in a `[specs]` commit. Older notes in that folder are background for the current code.
+- Create every spec directly inside `specs/`, as a Markdown file with a unique, descriptive kebab-case name, such as `specs/import-preview-gating-unconfigured-mapping.md`. Do not reuse an existing spec's name; update that spec instead if it covers the same change.
 
 ## Contributing
 
