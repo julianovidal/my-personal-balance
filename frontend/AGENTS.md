@@ -43,7 +43,7 @@ The lockfile is `pnpm-lock.yaml`. Always commit changes to this file.
 
 ### Code Standards
 
-- Follow ESLint + React/TypeScript conventions
+- Follow React and TypeScript conventions. ESLint is not set up in this project; `pnpm run build` runs the type check (`tsc -b`)
 - Components that render financial data or handle user input must have unit or interaction tests
 - Use the established shadcn-style component library; do not add one-off custom components without documented justification
 
