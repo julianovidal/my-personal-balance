@@ -15,7 +15,10 @@ This project is the backend for My Personal Balance.
 - users (`id`, `name`, `email`, `password`)
 - accounts (`id`, `name`, `currency`, `user_id`)
 - tags (`id`, `label`, `user_id`)
+- account_import_mappings (`id`, `account_id`, `date_column`, `description_column`, `amount_column`, `currency_column`, `tag_id_column`)
 - transactions (`id`, `date`, `description`, `account_id`, `tag_id`, `amount`, `currency`)
+  - transfers: `is_transfer`, `transfer_group_id`, `transfer_direction`, `linked_account_id`
+  - splits: `parent_transaction_id`
 
 ## Database migrations
 
@@ -35,7 +38,7 @@ uv run alembic upgrade head
 Run seed in the backend container:
 
 ```bash
-podman exec -it balance-api uv run python -m app.scripts.seed
+podman exec -it balance-api python -m app.scripts.seed
 ```
 
 ## CSV/XLSX import format
@@ -93,8 +96,9 @@ uv lock --upgrade-package <package>
 cd backend
 uv run python -m app.scripts.seed
 uv run alembic upgrade head
-uv run pytest
 ```
+
+`pytest` is not a dependency yet and there is no test suite. Once it is added, run tests with `uv run pytest`.
 
 ## Development Guidelines
 

@@ -49,8 +49,9 @@ uv lock --upgrade-package <package>
 ```bash
 cd classifier
 uv run uvicorn app.main:app --reload
-uv run pytest
 ```
+
+`pytest` is not a dependency yet and there is no test suite. Once it is added, run tests with `uv run pytest`.
 
 ## Development Guidelines
 

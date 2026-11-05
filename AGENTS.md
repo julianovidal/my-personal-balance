@@ -46,7 +46,7 @@ Routes in `frontend/src/App.tsx`: `/login`, `/` (dashboard), `/accounts`, `/tran
 - UI primitives are shadcn/ui under `src/components/ui/`. Prefer those over one-off controls.
 - Theme is light/dark via `src/lib/theme.ts`.
 
-Tests: `pnpm test` (Vitest). Existing coverage is `LoginPage`, `AccountsPage`, and `ProfilePage`. Pages that render money or take user input need a test.
+Tests: `pnpm test` (Vitest). Existing coverage is `LoginPage`, `AccountsPage`, `ProfilePage`, and `TransactionsPage`. `DashboardPage` and `ClassifierPage` have no tests yet. Pages that render money or take user input need a test.
 
 ## Backend
 
@@ -68,7 +68,7 @@ Import accepts CSV or XLSX. Required fields are date, description, and amount. C
 
 Migrations are in `backend/alembic/versions/`. Add a new revision for schema changes; do not edit applied revisions.
 
-`uv run pytest` is the intended test command. There is no Python test suite in the repo yet.
+Neither Python service has a test suite yet, and `pytest` is not a dependency of either one. `uv run pytest` is the intended test command once it is added.
 
 ## Classifier
 
