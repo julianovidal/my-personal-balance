@@ -12,13 +12,7 @@ This project is the backend for My Personal Balance.
 
 ## Database Domain model
 
-- users (`id`, `name`, `email`, `password`)
-- accounts (`id`, `name`, `currency`, `user_id`)
-- tags (`id`, `label`, `user_id`)
-- account_import_mappings (`id`, `account_id`, `date_column`, `description_column`, `amount_column`, `currency_column`, `tag_id_column`)
-- transactions (`id`, `date`, `description`, `account_id`, `tag_id`, `amount`, `currency`)
-  - transfers: `is_transfer`, `transfer_group_id`, `transfer_direction`, `linked_account_id`
-  - splits: `parent_transaction_id`
+The domain tables are listed under [Backend in the root `AGENTS.md`](../AGENTS.md#backend). Column definitions are in `app/models/`.
 
 ## Database migrations
 
