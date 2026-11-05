@@ -40,8 +40,8 @@ Use pnpm in `frontend/` and uv in the Python services. Commit `pnpm-lock.yaml` a
 
 Routes in `frontend/src/App.tsx`: `/login`, `/` (dashboard), `/accounts`, `/transactions`, `/classifier`, `/profile`. Everything except login sits behind `ProtectedRoute`.
 
-- `src/api/client.ts` talks to `VITE_API_URL` (`http://localhost:8000/api`). The JWT is stored in `localStorage` under `token`.
-- `src/api/classifierClient.ts` talks to `VITE_CLASSIFIER_API_URL` (`http://localhost:8001`) and attaches the same token.
+- `src/api/client.ts` talks to `VITE_BALANCE_API_URL` (`http://localhost:8000/api`). The JWT is stored in `localStorage` under `token`.
+- `src/api/classifierClient.ts` talks to `VITE_BALANCE_CLASSIFIER_URL` (`http://localhost:8001`) and attaches the same token.
 - Server state uses TanStack Query. Shared types live in `src/types/index.ts`.
 - UI primitives are shadcn/ui under `src/components/ui/`. Prefer those over one-off controls.
 - Theme is light/dark via `src/lib/theme.ts`.
@@ -193,6 +193,6 @@ Rules:
 Copy examples before a local run:
 
 - `backend/.env.example` — `SECRET_KEY`, token lifetime, `DATABASE_URL`, `CORS_ORIGINS`
-- `frontend/.env.example` — `VITE_API_URL`
+- `frontend/.env.example` — `VITE_BALANCE_API_URL`, `VITE_BALANCE_CLASSIFIER_URL`
 
 Compose injects database URLs and the classifier CORS origin. The classifier reuses `backend/.env` for `SECRET_KEY`.
