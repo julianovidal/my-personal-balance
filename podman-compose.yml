@@ -55,8 +55,8 @@ services:
       context: ./frontend
     container_name: balance-web
     environment:
-      VITE_API_URL: http://localhost:8000/api
-      VITE_CLASSIFIER_API_URL: http://localhost:8001
+      VITE_BALANCE_API_URL: http://localhost:8000/api
+      VITE_BALANCE_CLASSIFIER_URL: http://localhost:8001
     ports:
       - "5173:5173"
     depends_on:
