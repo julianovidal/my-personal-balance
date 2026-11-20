@@ -16,7 +16,7 @@ Self-hosted personal finance app. Track accounts, transactions, transfers, and t
 ## Run
 
 ```bash
-podman-compose -f podman-compose.yml up --build
+podman-compose -f compose.yml up --build
 ```
 
 | Service | URL |
