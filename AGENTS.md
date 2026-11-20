@@ -13,14 +13,14 @@ Read this file at the start of a new session, then the `AGENTS.md` in the servic
 | Classifier | `classifier/` | 8001 | Train and predict tags |
 | Postgres | compose service `db` | 5432 | Shared database `balance` |
 
-Compose file: `podman-compose.yml`. Containers: `balance-web`, `balance-api`, `balance-classifier`, `balance-db`.
+Compose file: `compose.yml`. Containers: `balance-web`, `balance-api`, `balance-classifier`, `balance-db`.
 
 The classifier reads the same Postgres database and the same JWT secret as the backend. It does not write tags; the frontend applies predictions through the backend.
 
 ## Run
 
 ```bash
-podman-compose -f podman-compose.yml up --build
+podman-compose -f compose.yml up --build
 podman exec -it balance-api python -m app.scripts.seed
 ```
 
