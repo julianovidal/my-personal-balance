@@ -55,7 +55,7 @@ uv run uvicorn app.main:app --reload --port 8001
 
 ## Known issues
 
-- `GET /api/classifier/transactions/untagged` returns every untagged non-transfer row, including split parts and split parents. It does not return `parent_transaction_id`, so the frontend cannot warn before tagging a split part, which detaches it on the backend (see `backend/AGENTS.md`).
+- `GET /api/classifier/transactions/untagged` returns every untagged non-transfer row, including split parts and split parents. Tagging a split part through `PUT /transactions/:id` keeps it in its split; only its description and tag can change there.
 - There is no route to read the current model's metadata. The frontend shows it only after a train or predict call.
 
 ## Development Guidelines

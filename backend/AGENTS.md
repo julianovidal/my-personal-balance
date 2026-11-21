@@ -105,7 +105,6 @@ uv run pytest
 
 Found while rebuilding the frontend. Not fixed yet.
 
-- `PUT /transactions/:id` always sets `parent_transaction_id = None` on non-transfer updates, so editing or tagging a split part detaches it from its parent. The Classifier page tags through this route.
 - `GET /accounts/balances` returns `balance` and `overall_balance` as floats, not decimal strings, and `overall_balance` adds accounts of different currencies together. The frontend shows per-currency totals instead.
 - `GET /transactions/summary/monthly` and `/transactions/analytics/*` add amounts across currencies.
 - `GET /transactions` adds a remainder row for partly split transactions with a negative `id` and the description `Missing Spllited Transactions` (typo). The frontend relabels it.
