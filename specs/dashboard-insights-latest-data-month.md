@@ -69,7 +69,6 @@ Two chart tokens were added to `src/index.css`, `--chart-in` and `--chart-out`, 
 - Refunds are not netted against spending.
 - Credit-card bill payments imported as plain expenses look like spending; imports never create transfer pairs.
 - A single global anchor: an account that is behind lowers the month. The freshness list warns about it.
-- `PUT /transactions/:id` still detaches split children (see `backend/AGENTS.md`), which can distort split remainders.
 
 ## Tests
 

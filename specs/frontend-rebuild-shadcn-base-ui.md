@@ -39,4 +39,4 @@ Balances arrive as floats from `/accounts/balances`; every other amount is a dec
 
 ## Known backend issues found (not fixed here)
 
-Listed in `backend/AGENTS.md` and `classifier/AGENTS.md`: `PUT /transactions/:id` detaches split parts, balances are floats, some totals mix currencies, and the remainder row description has a typo.
+Listed in `backend/AGENTS.md` and `classifier/AGENTS.md`: balances are floats, some totals mix currencies, and the remainder row description has a typo. `PUT /transactions/:id` used to detach split parts; that is fixed in `specs/split-part-update-keeps-parent.md`.
