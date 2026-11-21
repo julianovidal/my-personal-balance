@@ -199,3 +199,64 @@ export type ClassifierPredictResponse = {
   meta: ClassifierModelMeta | null;
   predictions: ClassifierPredictionItem[];
 };
+
+// ---- Dashboard insights (GET /dashboard/insights, /dashboard/balance-history)
+
+export type InsightTransaction = Transaction & { is_remainder: boolean }
+
+export type AccountFreshness = {
+  account_id: number
+  name: string
+  currency: string
+  last_date: string | null
+  days_behind: number | null
+  stale: boolean
+  inactive: boolean
+}
+
+export type TagSignal = {
+  tag_id: number
+  label: string
+  kind: "spike" | "new"
+  month_to_date: string
+  usual: string
+  difference: string
+}
+
+export type LargeExpense = {
+  transaction: InsightTransaction
+  typical: string
+  ratio: string
+  reason: "tag" | "untagged"
+}
+
+export type CurrencyInsights = {
+  currency: string
+  baseline_months: string[]
+  spending: {
+    month_to_date: string
+    usual: string | null
+    difference: string | null
+    full_month_usual: string | null
+  }
+  income_to_date: string
+  tags: { tag_id: number | null; label: string; month_to_date: string; usual: string | null }[]
+  signals: TagSignal[]
+  large_expenses: LargeExpense[]
+  top_expenses: InsightTransaction[]
+  trend: { month: string; income: string; expenses: string; net: string; has_data: boolean }[]
+}
+
+export type DashboardInsights = {
+  anchor_date: string | null
+  month: string | null
+  is_partial_month: boolean
+  accounts: AccountFreshness[]
+  currencies: CurrencyInsights[]
+  recent: InsightTransaction[]
+}
+
+export type BalanceHistory = {
+  anchor_date: string | null
+  series: { currency: string; points: { month: string; balance: string }[] }[]
+}

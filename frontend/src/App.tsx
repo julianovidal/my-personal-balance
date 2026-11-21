@@ -1,14 +1,15 @@
-import { Navigate, Route, Routes } from "react-router-dom";
-import { Layout } from "@/components/Layout";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { AccountsPage } from "@/pages/AccountsPage";
-import { ClassifierPage } from "@/pages/ClassifierPage";
-import { DashboardPage } from "@/pages/DashboardPage";
-import { LoginPage } from "@/pages/LoginPage";
-import { ProfilePage } from "@/pages/ProfilePage";
-import { TransactionsPage } from "@/pages/TransactionsPage";
+import { Navigate, Route, Routes } from "react-router-dom"
 
-export default function App() {
+import { AppShell } from "@/components/app-shell"
+import { ProtectedRoute } from "@/components/ProtectedRoute"
+import { AccountsPage } from "@/pages/AccountsPage"
+import { ClassifierPage } from "@/pages/ClassifierPage"
+import { DashboardPage } from "@/pages/DashboardPage"
+import { LoginPage } from "@/pages/LoginPage"
+import { ProfilePage } from "@/pages/ProfilePage"
+import { TransactionsPage } from "@/pages/TransactionsPage"
+
+export function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -16,7 +17,7 @@ export default function App() {
         path="/"
         element={
           <ProtectedRoute>
-            <Layout />
+            <AppShell />
           </ProtectedRoute>
         }
       >
@@ -28,5 +29,7 @@ export default function App() {
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-  );
+  )
 }
+
+export default AppRoutes
