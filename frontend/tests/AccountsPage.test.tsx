@@ -1,222 +1,168 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AccountsPage } from "@/pages/AccountsPage";
-import { api } from "@/api/client";
+import { screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("@/api/client", () => ({
-  api: {
-    get: vi.fn(),
-    post: vi.fn().mockResolvedValue({ data: {} }),
-    put: vi.fn().mockResolvedValue({ data: {} }),
-    delete: vi.fn().mockResolvedValue({ data: {} })
-  }
-}));
+import { AccountsPage } from "@/pages/AccountsPage"
 
-const sampleAccount = { id: 1, name: "Checking", currency: "EUR" };
+import { renderWithProviders } from "./render"
 
-function mockAccountsApi() {
-  vi.mocked(api.get).mockImplementation(async (url: string) => {
-    if (url === "/accounts") {
-      return { data: [sampleAccount] };
-    }
-    if (url === "/accounts/balances") {
-      return {
-        data: {
-          overall_balance: "100.00",
-          by_account: [{ account_id: 1, balance: "100.00" }]
-        }
-      };
-    }
-    if (url === "/accounts/1/import-mapping") {
-      return {
-        data: {
-          date_column: "transaction_date",
-          description_column: "details",
-          amount_column: "value",
-          currency_column: "curr",
-          tag_id_column: ""
-        }
-      };
-    }
-    return { data: [] };
-  });
+const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() }))
+vi.mock("@/api/client", () => ({ api }))
+
+const ACCOUNTS = [
+  { id: 1, name: "Checking", currency: "EUR", user_id: 1 },
+  { id: 2, name: "Brazil", currency: "BRL", user_id: 1 },
+  { id: 3, name: "Savings", currency: "EUR", user_id: 1 },
+]
+const BALANCES = {
+  overall_balance: 999,
+  by_account: [
+    { account_id: 1, account_name: "Checking", currency: "EUR", balance: 0.1 },
+    { account_id: 2, account_name: "Brazil", currency: "BRL", balance: -50 },
+    { account_id: 3, account_name: "Savings", currency: "EUR", balance: 0.2 },
+  ],
+}
+const MAPPING = {
+  account_id: 1,
+  date_column: "Date",
+  description_column: "Memo",
+  amount_column: "Value",
+  currency_column: null,
+  tag_id_column: null,
 }
 
-function renderAccountsPage() {
-  const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false } }
-  });
-  return render(
-    <QueryClientProvider client={qc}>
-      <AccountsPage />
-    </QueryClientProvider>
-  );
+function mockGets(overrides: Record<string, unknown> = {}) {
+  const routes: Record<string, unknown> = {
+    "/accounts": ACCOUNTS,
+    "/accounts/balances": BALANCES,
+    "/accounts/1/import-mapping": MAPPING,
+    ...overrides,
+  }
+  api.get.mockImplementation(async (url: string) => ({ data: routes[url] }))
+}
+
+async function openActions(name: string) {
+  await userEvent.click(await screen.findByRole("button", { name: `Actions for ${name}` }))
+  return screen.findByRole("menu")
 }
 
 describe("AccountsPage", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockAccountsApi();
-  });
+    vi.clearAllMocks()
+    mockGets()
+    api.post.mockResolvedValue({ data: {} })
+    api.put.mockResolvedValue({ data: {} })
+    api.delete.mockResolvedValue({ data: { ok: true } })
+  })
 
-  it("renders accounts section with Add account button", async () => {
-    renderAccountsPage();
-    await waitFor(() => {
-      expect(screen.getByText("Your accounts")).toBeInTheDocument();
-    });
-    expect(screen.getAllByText("Add account")[0]).toBeInTheDocument();
-  });
+  it("lists accounts with balances in their own currency", async () => {
+    renderWithProviders(<AccountsPage />)
+    const row = (await screen.findByText("Checking")).closest("tr")!
+    expect(within(row).getByText("€0.10")).toBeInTheDocument()
+    const brazil = screen.getByText("Brazil").closest("tr")!
+    expect(within(brazil).getByText("-R$50.00")).toBeInTheDocument()
+  })
 
-  it("opens the account dialog when Add account is clicked", async () => {
-    renderAccountsPage();
-    await waitFor(() => {
-      expect(screen.getAllByText("Add account")[0]).toBeInTheDocument();
-    });
+  it("shows one total per currency instead of a mixed overall", async () => {
+    renderWithProviders(<AccountsPage />)
+    expect(await screen.findByText("Total in EUR")).toBeInTheDocument()
+    expect(screen.getByText("€0.30")).toBeInTheDocument()
+    expect(screen.getByText("Total in BRL")).toBeInTheDocument()
+    expect(screen.queryByText("999")).not.toBeInTheDocument()
+  })
 
-    fireEvent.click(screen.getAllByText("Add account")[0]);
+  it("shows an empty state", async () => {
+    mockGets({ "/accounts": [], "/accounts/balances": { overall_balance: 0, by_account: [] } })
+    renderWithProviders(<AccountsPage />)
+    expect(await screen.findByText("No accounts yet")).toBeInTheDocument()
+  })
 
-    await waitFor(() => {
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
-    });
-    expect(screen.getByText("Add account", { selector: "*[role='heading'], h2, [data-slot='dialog-title']" })).toBeInTheDocument();
-  });
+  it("creates an account with a trimmed name and the default currency", async () => {
+    renderWithProviders(<AccountsPage />)
+    await userEvent.click(screen.getByRole("button", { name: "Add account" }))
+    const dialog = await screen.findByRole("dialog")
+    await userEvent.type(within(dialog).getByLabelText("Name"), "  Wallet  ")
+    await userEvent.click(within(dialog).getByRole("button", { name: "Create account" }))
+    expect(api.post).toHaveBeenCalledWith("/accounts", { name: "Wallet", currency: "EUR" })
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  })
 
-  it("keeps focus in the account name field while typing", async () => {
-    const user = userEvent.setup();
-    renderAccountsPage();
-    await waitFor(() => {
-      expect(screen.getAllByRole("button", { name: "Add account" })[0]).toBeInTheDocument();
-    });
+  it("keeps focus in the name field while typing", async () => {
+    renderWithProviders(<AccountsPage />)
+    await userEvent.click(screen.getByRole("button", { name: "Add account" }))
+    const input = within(await screen.findByRole("dialog")).getByLabelText("Name")
+    await userEvent.type(input, "Abc")
+    expect(input).toHaveFocus()
+    expect(input).toHaveValue("Abc")
+  })
 
-    await user.click(screen.getAllByRole("button", { name: "Add account" })[0]);
-    const dialog = await screen.findByRole("dialog");
-    const name = within(dialog).getByRole("textbox");
-    await user.type(name, "Checking");
+  it("edits an account, prefilled, and can change the currency", async () => {
+    renderWithProviders(<AccountsPage />)
+    const menu = await openActions("Brazil")
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "Edit" }))
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("Brazil")
+    await userEvent.click(within(dialog).getByLabelText("Currency"))
+    await userEvent.click(await screen.findByRole("option", { name: "USD" }))
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save changes" }))
+    expect(api.put).toHaveBeenCalledWith("/accounts/2", { name: "Brazil", currency: "USD" })
+  })
 
-    expect(name).toHaveValue("Checking");
-    expect(name).toHaveFocus();
-  });
+  it("warns that deleting removes transactions, then deletes", async () => {
+    renderWithProviders(<AccountsPage />)
+    const menu = await openActions("Savings")
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "Delete" }))
+    const dialog = await screen.findByRole("alertdialog")
+    expect(within(dialog).getByText(/transactions are deleted with it/)).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole("button", { name: "Delete account" }))
+    expect(api.delete).toHaveBeenCalledWith("/accounts/3")
+  })
 
-  it("does not render the page-level import settings card", async () => {
-    renderAccountsPage();
-    await waitFor(() => {
-      expect(screen.getByText("Checking")).toBeInTheDocument();
-    });
-    expect(screen.queryByText("Account import settings")).not.toBeInTheDocument();
-  });
+  it("opens import settings with the saved mapping and saves changes", async () => {
+    renderWithProviders(<AccountsPage />)
+    const menu = await openActions("Checking")
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "Import settings" }))
+    const date = await screen.findByLabelText("Date column")
+    expect(date).toHaveValue("Date")
+    expect(api.get).toHaveBeenCalledWith("/accounts/1/import-mapping")
+    await userEvent.type(screen.getByLabelText("Currency column"), "Curr")
+    await userEvent.click(screen.getByRole("button", { name: "Save mapping" }))
+    expect(api.put).toHaveBeenCalledWith("/accounts/1/import-mapping", {
+      date_column: "Date",
+      description_column: "Memo",
+      amount_column: "Value",
+      currency_column: "Curr",
+      tag_id_column: "",
+    })
+    await waitFor(() => expect(screen.queryByLabelText("Date column")).not.toBeInTheDocument())
+  })
 
-  it("opens import settings modal for an account and loads mapping", async () => {
-    const user = userEvent.setup();
-    renderAccountsPage();
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Import settings for Checking" })).toBeInTheDocument();
-    });
+  it("asks before discarding unsaved import settings", async () => {
+    renderWithProviders(<AccountsPage />)
+    const menu = await openActions("Checking")
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "Import settings" }))
+    await userEvent.type(await screen.findByLabelText("Amount column"), "X")
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }))
 
-    await user.click(screen.getByRole("button", { name: "Import settings for Checking" }));
+    const confirm = await screen.findByRole("alertdialog")
+    await userEvent.click(within(confirm).getByRole("button", { name: "Keep editing" }))
+    expect(screen.getByLabelText("Amount column")).toHaveValue("ValueX")
 
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading", { name: /Import settings — Checking/i })).toBeInTheDocument();
-    await waitFor(() => {
-      expect(within(dialog).getByDisplayValue("transaction_date")).toBeInTheDocument();
-    });
-    expect(within(dialog).getByDisplayValue("details")).toBeInTheDocument();
-    expect(within(dialog).getByDisplayValue("value")).toBeInTheDocument();
-  });
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    await userEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Discard" })
+    )
+    await waitFor(() => expect(screen.queryByLabelText("Amount column")).not.toBeInTheDocument())
+    expect(api.put).not.toHaveBeenCalled()
+  })
 
-  it("saves import mapping and closes the modal", async () => {
-    const user = userEvent.setup();
-    renderAccountsPage();
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Import settings for Checking" })).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByRole("button", { name: "Import settings for Checking" }));
-    const dialog = await screen.findByRole("dialog");
-    await waitFor(() => {
-      expect(within(dialog).getByDisplayValue("transaction_date")).toBeInTheDocument();
-    });
-
-    const dateInput = within(dialog).getByDisplayValue("transaction_date");
-    await user.clear(dateInput);
-    await user.type(dateInput, "posted_date");
-    await user.click(within(dialog).getByRole("button", { name: "Save mapping" }));
-
-    await waitFor(() => {
-      expect(api.put).toHaveBeenCalledWith("/accounts/1/import-mapping", {
-        date_column: "posted_date",
-        description_column: "details",
-        amount_column: "value",
-        currency_column: "curr",
-        tag_id_column: ""
-      });
-    });
-    await waitFor(() => {
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
-  });
-
-  it("keeps in-progress import field edits when mapping is refetched", async () => {
-    const user = userEvent.setup();
-    const qc = new QueryClient({
-      defaultOptions: { queries: { retry: false } }
-    });
-    render(
-      <QueryClientProvider client={qc}>
-        <AccountsPage />
-      </QueryClientProvider>
-    );
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Import settings for Checking" })).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByRole("button", { name: "Import settings for Checking" }));
-    const importDialog = await screen.findByRole("dialog");
-    await waitFor(() => {
-      expect(within(importDialog).getByDisplayValue("transaction_date")).toBeInTheDocument();
-    });
-
-    const dateInput = within(importDialog).getByDisplayValue("transaction_date");
-    await user.clear(dateInput);
-    await user.type(dateInput, "posted_from_clipboard");
-
-    await qc.invalidateQueries({ queryKey: ["account-import-mapping", "1"] });
-    await waitFor(() => {
-      expect(api.get).toHaveBeenCalledWith("/accounts/1/import-mapping");
-    });
-
-    expect(within(importDialog).getByDisplayValue("posted_from_clipboard")).toBeInTheDocument();
-  });
-
-  it("confirms discard when closing with unsaved changes", async () => {
-    const user = userEvent.setup();
-    renderAccountsPage();
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Import settings for Checking" })).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByRole("button", { name: "Import settings for Checking" }));
-    const importDialog = await screen.findByRole("dialog");
-    await waitFor(() => {
-      expect(within(importDialog).getByDisplayValue("transaction_date")).toBeInTheDocument();
-    });
-
-    const dateInput = within(importDialog).getByDisplayValue("transaction_date");
-    await user.clear(dateInput);
-    await user.type(dateInput, "changed");
-
-    await user.click(within(importDialog).getByRole("button", { name: "Cancel" }));
-
-    const discardDialog = await screen.findByRole("dialog", { name: /Discard changes/i });
-    expect(discardDialog).toBeInTheDocument();
-    expect(api.put).not.toHaveBeenCalled();
-
-    await user.click(within(discardDialog).getByRole("button", { name: "Discard" }));
-
-    await waitFor(() => {
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
-    expect(api.put).not.toHaveBeenCalled();
-  });
-});
+  it("closes import settings without asking when nothing changed", async () => {
+    renderWithProviders(<AccountsPage />)
+    const menu = await openActions("Checking")
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "Import settings" }))
+    await screen.findByLabelText("Date column")
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    await waitFor(() => expect(screen.queryByLabelText("Date column")).not.toBeInTheDocument())
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+  })
+})

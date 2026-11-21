@@ -1,76 +1,113 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useAuth } from "@/contexts/AuthContext";
+import { useState, type FormEvent } from "react"
+import { Navigate, useNavigate } from "react-router-dom"
+
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { useAuth } from "@/contexts/AuthContext"
+import { getAuthErrorMessage } from "@/lib/auth-errors"
+
+type Mode = "login" | "register"
 
 export function LoginPage() {
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const { login, register } = useAuth();
-  const navigate = useNavigate();
+  const { user, login, register } = useAuth()
+  const navigate = useNavigate()
+  const [mode, setMode] = useState<Mode>("login")
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const [submitting, setSubmitting] = useState(false)
 
-  const submit = async () => {
+  if (user) return <Navigate to="/" replace />
+
+  const isRegister = mode === "register"
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    setError("")
+    setSubmitting(true)
     try {
-      setError("");
-      if (mode === "login") {
-        await login(email, password);
+      if (isRegister) {
+        await register(name, email, password)
       } else {
-        await register(name, email, password);
+        await login(email, password)
       }
-      navigate("/");
-    } catch {
-      setError("Authentication failed. Check credentials and try again.");
+      navigate("/")
+    } catch (err) {
+      setError(getAuthErrorMessage(err))
+    } finally {
+      setSubmitting(false)
     }
-  };
+  }
+
+  const toggleMode = () => {
+    setMode(isRegister ? "login" : "register")
+    setError("")
+  }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md p-5">
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit();
-          }}
-        >
-        <h1 className="mb-1 text-2xl font-bold">Expense Manager</h1>
-        <p className="mb-4 text-sm text-muted-foreground">Track your expenses across all accounts.</p>
-
-        {mode === "register" && (
-          <div className="mb-3">
-            <Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-        )}
-
-        <div className="mb-3">
-          <Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email</Label>
-          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </div>
-        <div className="mb-4">
-          <Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Password</Label>
-          <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </div>
-
-        {error ? <p className="mb-3 text-sm text-foreground">{error}</p> : null}
-
-        <Button className="w-full" type="submit">
-          {mode === "login" ? "Login" : "Create Account"}
-        </Button>
-        <button
-          type="button"
-          className="mt-3 w-full text-sm text-muted-foreground underline"
-          onClick={() => setMode(mode === "login" ? "register" : "login")}
-        >
-          {mode === "login" ? "Need an account? Register" : "Already have an account? Login"}
-        </button>
-        </form>
+    <div className="flex min-h-svh items-center justify-center bg-muted p-4 md:p-10">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <h1 className="font-heading text-xl font-semibold">
+            {isRegister ? "Create account" : "Log in"}
+          </h1>
+          <CardDescription>Balance: track your money across all accounts.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={submit}>
+            <FieldGroup>
+              {isRegister && (
+                <Field>
+                  <FieldLabel htmlFor="name">Name</FieldLabel>
+                  <Input
+                    id="name"
+                    autoComplete="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </Field>
+              )}
+              <Field>
+                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="password">Password</FieldLabel>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete={isRegister ? "new-password" : "current-password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </Field>
+              {error && (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" className="w-full" disabled={submitting}>
+                {isRegister ? "Create account" : "Log in"}
+              </Button>
+              <Button type="button" variant="link" onClick={toggleMode}>
+                {isRegister ? "Already have an account? Log in" : "Need an account? Register"}
+              </Button>
+            </FieldGroup>
+          </form>
+        </CardContent>
       </Card>
     </div>
-  );
+  )
 }

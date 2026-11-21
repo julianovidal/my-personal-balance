@@ -1,94 +1,129 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ProfilePage } from "@/pages/ProfilePage";
+import { AxiosError, type InternalAxiosRequestConfig } from "axios"
+import { screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+import { ProfilePage } from "@/pages/ProfilePage"
+
+import { renderWithProviders } from "./render"
+
+const api = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  put: vi.fn(),
+  delete: vi.fn(),
+}))
+vi.mock("@/api/client", () => ({ api }))
 
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({ user: { name: "Test User", email: "test@example.com" } })
-}));
+  useAuth: () => ({ user: { id: 1, name: "Ana Souza", email: "ana@example.com" } }),
+}))
 
-vi.mock("@/api/client", () => ({
-  api: {
-    get: vi.fn().mockResolvedValue({ data: [] }),
-    post: vi.fn().mockResolvedValue({ data: {} }),
-    put: vi.fn().mockResolvedValue({ data: {} }),
-    delete: vi.fn().mockResolvedValue({ data: {} })
-  }
-}));
-
-vi.mock("@/lib/theme", () => ({
-  getTheme: () => "light",
-  setTheme: vi.fn()
-}));
-
-function renderProfilePage() {
-  const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false } }
-  });
-  return render(
-    <QueryClientProvider client={qc}>
-      <ProfilePage />
-    </QueryClientProvider>
-  );
-}
+const TAGS = [
+  { id: 1, label: "Food", user_id: 1 },
+  { id: 2, label: "Rent", user_id: 1 },
+]
 
 describe("ProfilePage", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-  });
+    vi.clearAllMocks()
+    localStorage.clear()
+    api.get.mockResolvedValue({ data: TAGS })
+    api.post.mockResolvedValue({ data: {} })
+    api.put.mockResolvedValue({ data: {} })
+    api.delete.mockResolvedValue({ data: { ok: true } })
+  })
 
-  it("renders user profile information", async () => {
-    renderProfilePage();
-    await waitFor(() => {
-      expect(screen.getByText("Test User")).toBeInTheDocument();
-    });
-    expect(screen.getByText("test@example.com")).toBeInTheDocument();
-  });
+  it("shows the user's name, email and initials", () => {
+    renderWithProviders(<ProfilePage />)
+    expect(screen.getByText("Ana Souza")).toBeInTheDocument()
+    expect(screen.getByText("ana@example.com")).toBeInTheDocument()
+    expect(screen.getByText("AS")).toBeInTheDocument()
+  })
 
-  it("renders the tag creation form", async () => {
-    renderProfilePage();
-    await waitFor(() => {
-      expect(screen.getByText("Tags")).toBeInTheDocument();
-    });
-    expect(screen.getByText("Label")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Create tag/i })).toBeInTheDocument();
-  });
+  it("lists tags with a count", async () => {
+    renderWithProviders(<ProfilePage />)
+    expect(await screen.findByText("Food")).toBeInTheDocument()
+    expect(screen.getByText("Rent")).toBeInTheDocument()
+    expect(screen.getByText("2 tags")).toBeInTheDocument()
+    expect(api.get).toHaveBeenCalledWith("/tags")
+  })
 
-  it("opens delete confirmation dialog when delete tag is clicked", async () => {
-    const { api } = await import("@/api/client");
-    vi.mocked(api.get).mockResolvedValue({ data: [{ id: 1, label: "Food" }] });
+  it("shows an empty state when there are no tags", async () => {
+    api.get.mockResolvedValue({ data: [] })
+    renderWithProviders(<ProfilePage />)
+    expect(await screen.findByText(/No tags yet/)).toBeInTheDocument()
+  })
 
-    renderProfilePage();
-    await waitFor(() => {
-      expect(screen.getByText("Food")).toBeInTheDocument();
-    });
+  it("creates a trimmed tag and clears the input", async () => {
+    renderWithProviders(<ProfilePage />)
+    const input = screen.getByLabelText("New tag label")
+    expect(screen.getByRole("button", { name: "Add tag" })).toBeDisabled()
+    await userEvent.type(input, "  Travel  ")
+    await userEvent.click(screen.getByRole("button", { name: "Add tag" }))
+    expect(api.post).toHaveBeenCalledWith("/tags", { label: "Travel" })
+    await waitFor(() => expect(input).toHaveValue(""))
+  })
 
-    fireEvent.click(screen.getByRole("button", { name: /Delete/i }));
+  it("shows the backend error when creating fails", async () => {
+    const config = { headers: {} } as InternalAxiosRequestConfig
+    api.post.mockRejectedValue(
+      new AxiosError("x", undefined, config, null, {
+        status: 400,
+        statusText: "",
+        headers: {},
+        config,
+        data: { detail: "Tag already exists" },
+      })
+    )
+    renderWithProviders(<ProfilePage />)
+    await userEvent.type(screen.getByLabelText("New tag label"), "Food")
+    await userEvent.click(screen.getByRole("button", { name: "Add tag" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent("Tag already exists")
+  })
 
-    await waitFor(() => {
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
-    });
-    expect(screen.getByRole("heading", { name: /Delete tag/i })).toBeInTheDocument();
-  });
+  it("renames a tag inline", async () => {
+    renderWithProviders(<ProfilePage />)
+    await userEvent.click(await screen.findByRole("button", { name: "Rename Food" }))
+    const input = screen.getByLabelText("New name for Food")
+    await userEvent.clear(input)
+    await userEvent.type(input, "Groceries")
+    await userEvent.click(screen.getByRole("button", { name: "Save" }))
+    expect(api.put).toHaveBeenCalledWith("/tags/1", { label: "Groceries" })
+    await waitFor(() => expect(screen.queryByLabelText("New name for Food")).not.toBeInTheDocument())
+  })
 
-  it("calls create tag handler when form is submitted", async () => {
-    const { api } = await import("@/api/client");
-    vi.mocked(api.post).mockResolvedValue({ data: { id: 2, label: "Travel" } });
-    vi.mocked(api.get).mockResolvedValue({ data: [] });
+  it("cancels a rename with Escape", async () => {
+    renderWithProviders(<ProfilePage />)
+    await userEvent.click(await screen.findByRole("button", { name: "Rename Food" }))
+    await userEvent.keyboard("{Escape}")
+    expect(screen.queryByLabelText("New name for Food")).not.toBeInTheDocument()
+    expect(api.put).not.toHaveBeenCalled()
+  })
 
-    renderProfilePage();
-    await waitFor(() => {
-      expect(screen.getByText("Tags")).toBeInTheDocument();
-    });
+  it("asks for confirmation before deleting a tag", async () => {
+    renderWithProviders(<ProfilePage />)
+    await userEvent.click(await screen.findByRole("button", { name: "Delete Rent" }))
+    const dialog = await screen.findByRole("alertdialog")
+    expect(within(dialog).getByText('Delete tag "Rent"?')).toBeInTheDocument()
+    expect(api.delete).not.toHaveBeenCalled()
+    await userEvent.click(within(dialog).getByRole("button", { name: "Delete tag" }))
+    expect(api.delete).toHaveBeenCalledWith("/tags/2")
+  })
 
-    const labelInput = screen.queryByRole("textbox");
+  it("does not delete when the dialog is cancelled", async () => {
+    renderWithProviders(<ProfilePage />)
+    await userEvent.click(await screen.findByRole("button", { name: "Delete Rent" }))
+    const dialog = await screen.findByRole("alertdialog")
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }))
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument())
+    expect(api.delete).not.toHaveBeenCalled()
+  })
 
-    if (labelInput) {
-      fireEvent.change(labelInput, { target: { value: "Travel" } });
-      fireEvent.submit(labelInput.closest("form")!);
-      await waitFor(() => {
-        expect(vi.mocked(api.post)).toHaveBeenCalledWith("/tags", { label: "Travel" });
-      });
-    }
-  });
-});
+  it("switches the theme and stores the choice", async () => {
+    renderWithProviders(<ProfilePage />)
+    await userEvent.click(screen.getByRole("button", { name: "Dark" }))
+    expect(document.documentElement).toHaveClass("dark")
+    expect(localStorage.getItem("theme")).toBe("dark")
+  })
+})

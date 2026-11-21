@@ -1,252 +1,345 @@
-import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/api/client";
-import { classifierApi } from "@/api/classifierClient";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatMoney } from "@/lib/utils";
+import { useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { CheckIcon, RefreshCwIcon, SparklesIcon } from "lucide-react"
+
+import { api } from "@/api/client"
+import { classifierApi } from "@/api/classifierClient"
+import { useAccounts, useTags } from "@/api/queries"
+import { SimpleSelect } from "@/components/simple-select"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { getApiErrorMessage } from "@/lib/auth-errors"
+import { formatMoney } from "@/lib/money"
+import { cn } from "@/lib/utils"
+import { formatDate } from "@/pages/transactions/dates"
+import type {
   Account,
   ClassifierModelMeta,
   ClassifierPredictResponse,
   ClassifierTrainResponse,
   ClassifierUntaggedTransaction,
   Tag,
-} from "@/types";
+} from "@/types"
+
+type Prediction = { tagId: number; confidence: number }
 
 export function ClassifierPage() {
-  const qc = useQueryClient();
-  const [accountId, setAccountId] = useState("");
-  const [selectedTags, setSelectedTags] = useState<Record<number, string>>({});
-  const [predictionByTx, setPredictionByTx] = useState<Record<number, { suggested_tag_id: number; confidence: number }>>({});
-  const [modelMeta, setModelMeta] = useState<ClassifierModelMeta | null>(null);
-  const [modelStatus, setModelStatus] = useState<string>("");
+  const accounts = useAccounts()
+  const tags = useTags().data ?? []
+  const [chosen, setChosen] = useState<string | null>(null)
+  // Default to the first account once they load, like the old page.
+  const accountId = chosen ?? (accounts.data?.[0] ? String(accounts.data[0].id) : "")
+  const account = accounts.data?.find((a) => String(a.id) === accountId)
 
-  const { data: accounts = [] } = useQuery({
-    queryKey: ["accounts"],
-    queryFn: async () => (await api.get<Account[]>("/accounts")).data,
-  });
+  return (
+    <div className="flex flex-col gap-4 md:gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Tag suggestions</CardTitle>
+          <CardDescription>
+            Each account has its own model, trained on that account's tagged transactions. Suggestions are
+            only saved when you apply them.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid max-w-xs gap-1.5">
+            <Label htmlFor="classifier-account">Account</Label>
+            {accounts.isPending ? (
+              <Skeleton className="h-8 w-full" />
+            ) : (
+              <SimpleSelect
+                id="classifier-account"
+                value={accountId}
+                placeholder="Select account"
+                onValueChange={setChosen}
+                options={(accounts.data ?? []).map((a) => ({ value: String(a.id), label: a.name }))}
+              />
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-  const { data: tags = [] } = useQuery({
-    queryKey: ["tags"],
-    queryFn: async () => (await api.get<Tag[]>("/tags")).data,
-  });
+      {/* Keyed by account: model info, predictions and picks reset when the account changes. */}
+      {account && <AccountClassifier key={account.id} account={account} tags={tags} />}
+      {accounts.isSuccess && accounts.data.length === 0 && (
+        <p className="text-sm text-muted-foreground">Create an account first to use the classifier.</p>
+      )}
+    </div>
+  )
+}
 
-  useEffect(() => {
-    if (!accountId && accounts.length > 0) {
-      setAccountId(String(accounts[0].id));
-    }
-  }, [accounts, accountId]);
+function AccountClassifier({ account, tags }: { account: Account; tags: Tag[] }) {
+  const qc = useQueryClient()
+  const [meta, setMeta] = useState<ClassifierModelMeta | null>(null)
+  const [status, setStatus] = useState<{ tone: "ok" | "warn"; text: string } | null>(null)
+  const [predictions, setPredictions] = useState<Record<number, Prediction>>({})
+  const [picked, setPicked] = useState<Record<number, string>>({})
 
-  useEffect(() => {
-    setPredictionByTx({});
-    setSelectedTags({});
-    setModelMeta(null);
-    setModelStatus("");
-  }, [accountId]);
+  const untaggedKey = ["classifier-untagged-transactions", String(account.id)]
+  const untagged = useQuery({
+    queryKey: untaggedKey,
+    queryFn: async () =>
+      (
+        await classifierApi.get<ClassifierUntaggedTransaction[]>("/api/classifier/transactions/untagged", {
+          params: { account_id: account.id },
+        })
+      ).data,
+  })
+  const rows = untagged.data ?? []
 
-  const { data: transactions = [], isFetching: isLoadingTransactions } = useQuery({
-    queryKey: ["classifier-untagged-transactions", accountId],
-    enabled: Boolean(accountId),
-    queryFn: async () => {
-      const res = await classifierApi.get<ClassifierUntaggedTransaction[]>("/api/classifier/transactions/untagged", {
-        params: { account_id: Number(accountId) },
-      });
-      return res.data;
-    },
-  });
-
-  const retrainMutation = useMutation({
-    mutationFn: async () => {
-      const res = await classifierApi.post<ClassifierTrainResponse>("/api/classifier/train", {
-        account_id: Number(accountId),
-      });
-      return res.data;
-    },
+  const retrain = useMutation({
+    mutationFn: async () =>
+      (await classifierApi.post<ClassifierTrainResponse>("/api/classifier/train", { account_id: account.id })).data,
     onSuccess: (data) => {
-      setModelMeta(data.meta ?? null);
-      setModelStatus(data.trained ? "Model retrained." : (data.reason ?? "Model training failed."));
+      setMeta(data.meta)
+      setStatus(
+        data.trained
+          ? { tone: "ok", text: "Model retrained." }
+          : { tone: "warn", text: data.reason ?? "Model training failed." }
+      )
     },
-  });
+  })
 
-  const predictMutation = useMutation({
-    mutationFn: async () => {
-      const txIds = transactions.map((tx) => tx.id);
-      const res = await classifierApi.post<ClassifierPredictResponse>("/api/classifier/predict", {
-        account_id: Number(accountId),
-        transaction_ids: txIds,
-      });
-      return res.data;
-    },
+  const predict = useMutation({
+    mutationFn: async () =>
+      (
+        await classifierApi.post<ClassifierPredictResponse>("/api/classifier/predict", {
+          account_id: account.id,
+          transaction_ids: rows.map((r) => r.id),
+        })
+      ).data,
     onSuccess: (data) => {
-      setModelMeta(data.meta ?? null);
+      setMeta(data.meta)
       if (!data.model_ready) {
-        setModelStatus(data.reason ?? "Model not ready. Retrain first.");
-        return;
+        setStatus({ tone: "warn", text: data.reason ?? "Model not ready. Retrain first." })
+        return
       }
-
-      const nextPredictions: Record<number, { suggested_tag_id: number; confidence: number }> = {};
-      for (const item of data.predictions) {
-        nextPredictions[item.transaction_id] = {
-          suggested_tag_id: item.suggested_tag_id,
-          confidence: item.confidence,
-        };
-      }
-      setPredictionByTx(nextPredictions);
-      setSelectedTags((prev) => {
-        const next = { ...prev };
-        for (const item of data.predictions) {
-          next[item.transaction_id] = String(item.suggested_tag_id);
-        }
-        return next;
-      });
-      setModelStatus(`Predicted ${data.predictions.length} transactions.`);
+      const next: Record<number, Prediction> = {}
+      for (const p of data.predictions) next[p.transaction_id] = { tagId: p.suggested_tag_id, confidence: p.confidence }
+      setPredictions(next)
+      // Suggestions fill the tag picker, but never overwrite a tag the user picked.
+      setPicked((prev) => {
+        const merged = { ...prev }
+        for (const p of data.predictions) merged[p.transaction_id] ??= String(p.suggested_tag_id)
+        return merged
+      })
+      setStatus({
+        tone: "ok",
+        text: `Suggested tags for ${data.predictions.length} ${data.predictions.length === 1 ? "transaction" : "transactions"}.`,
+      })
     },
-  });
+  })
 
-  const applyTagMutation = useMutation({
-    mutationFn: async (tx: ClassifierUntaggedTransaction) => {
-      const selected = selectedTags[tx.id];
-      if (!selected) return;
-      await api.put(`/transactions/${tx.id}`, {
+  const apply = useMutation({
+    mutationFn: async (tx: ClassifierUntaggedTransaction) =>
+      api.put(`/transactions/${tx.id}`, {
         date: tx.date,
         description: tx.description,
         account_id: tx.account_id,
-        tag_id: Number(selected),
+        tag_id: Number(picked[tx.id]),
         is_transfer: false,
         destination_account_id: null,
         amount: tx.amount,
         currency: tx.currency,
-      });
+      }),
+    onSuccess: (_data, tx) => {
+      qc.invalidateQueries({ queryKey: untaggedKey })
+      qc.invalidateQueries({ queryKey: ["transactions"] })
+      const label = tags.find((t) => String(t.id) === picked[tx.id])?.label
+      setStatus({ tone: "ok", text: `Tagged "${tx.description}"${label ? ` as ${label}` : ""}.` })
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["classifier-untagged-transactions", accountId] });
-      qc.invalidateQueries({ queryKey: ["transactions"] });
-      setModelStatus("Tag applied.");
-    },
-  });
+  })
 
-  const hasTransactions = transactions.length > 0;
-  const canPredict = Boolean(accountId) && hasTransactions && !predictMutation.isPending;
-  const canRetrain = Boolean(accountId) && !retrainMutation.isPending;
-
-  const accountName = useMemo(
-    () => accounts.find((item) => item.id === Number(accountId))?.name ?? "",
-    [accounts, accountId],
-  );
+  const error = retrain.error ?? predict.error ?? apply.error ?? untagged.error
+  const predictedCount = rows.filter((r) => predictions[r.id]).length
+  const tagLabel = (id: number) => tags.find((t) => t.id === id)?.label ?? `Tag ${id}`
+  const tagOptions = tags.map((t) => ({ value: String(t.id), label: t.label }))
 
   return (
-    <div className="space-y-4">
-      <Card className="space-y-4 p-5">
-        <div>
-          <h2 className="text-xl font-semibold">Classifier</h2>
-          <p className="text-sm text-muted-foreground">
-            Predict tags for untagged transactions using an account-scoped model.
-          </p>
-        </div>
+    <>
+      <div className="grid grid-cols-1 gap-4 *:data-[slot=card]:bg-linear-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs @xl/main:grid-cols-3 dark:*:data-[slot=card]:bg-card">
+        <Card className="@container/card">
+          <CardHeader>
+            <CardDescription>Untagged</CardDescription>
+            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+              {untagged.isPending ? <Skeleton className="h-8 w-16" /> : rows.length}
+            </CardTitle>
+          </CardHeader>
+          <CardFooter className="text-sm text-muted-foreground">Non-transfer transactions in {account.name}</CardFooter>
+        </Card>
+        <Card className="@container/card">
+          <CardHeader>
+            <CardDescription>Suggested</CardDescription>
+            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">{predictedCount}</CardTitle>
+          </CardHeader>
+          <CardFooter className="text-sm text-muted-foreground">
+            {predictedCount ? "Review and apply below" : "Run Predict to get suggestions"}
+          </CardFooter>
+        </Card>
+        <Card className="@container/card">
+          <CardHeader>
+            <CardDescription>Model</CardDescription>
+            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+              {meta ? `${Math.round(meta.score * 100)}%` : "—"}
+            </CardTitle>
+            {meta && (
+              <CardAction>
+                <Badge variant="outline">macro-F1</Badge>
+              </CardAction>
+            )}
+          </CardHeader>
+          <CardFooter className="flex-col items-start gap-0.5 text-sm text-muted-foreground">
+            {meta ? (
+              <>
+                <span>
+                  {meta.model_name} · {meta.sample_count} samples · {meta.class_count} tags
+                </span>
+                <span>Trained {new Date(meta.trained_at).toLocaleString()}</span>
+              </>
+            ) : (
+              "Shown after you retrain or predict"
+            )}
+          </CardFooter>
+        </Card>
+      </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <div>
-            <Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Account</Label>
-            <Select value={accountId} onChange={(event) => setAccountId(event.target.value)}>
-              <option value="">Select account</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          <div className="flex items-end gap-2 md:col-span-2">
-            <Button disabled={!canRetrain} onClick={() => retrainMutation.mutate()}>
-              {retrainMutation.isPending ? "Retraining..." : "Retrain Model"}
+      <Card>
+        <CardHeader>
+          <CardTitle>Untagged transactions</CardTitle>
+          <CardDescription>Needs at least 20 tagged transactions and 2 different tags to train.</CardDescription>
+          <CardAction className="flex gap-2">
+            <Button variant="outline" disabled={retrain.isPending} onClick={() => retrain.mutate()}>
+              <RefreshCwIcon className={cn(retrain.isPending && "animate-spin")} />
+              <span className="hidden sm:inline">{retrain.isPending ? "Retraining..." : "Retrain model"}</span>
             </Button>
-            <Button disabled={!canPredict} onClick={() => predictMutation.mutate()}>
-              {predictMutation.isPending ? "Predicting..." : "Predict All"}
+            <Button disabled={!rows.length || predict.isPending} onClick={() => predict.mutate()}>
+              <SparklesIcon />
+              <span className="hidden sm:inline">{predict.isPending ? "Predicting..." : "Predict all"}</span>
             </Button>
-          </div>
-        </div>
+          </CardAction>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          {status && (
+            <p
+              role="status"
+              className={cn("text-sm", status.tone === "warn" ? "text-destructive" : "text-muted-foreground")}
+            >
+              {status.text}
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {getApiErrorMessage(error)}
+            </p>
+          )}
 
-        {modelMeta ? (
-          <p className="text-xs text-muted-foreground">
-            Model: {modelMeta.model_name} | Score: {modelMeta.score.toFixed(4)} | Samples: {modelMeta.sample_count} | Classes: {modelMeta.class_count}
-          </p>
-        ) : null}
-
-        {modelStatus ? <p className="text-sm">{modelStatus}</p> : null}
-      </Card>
-
-      <Card className="p-5">
-        <h3 className="mb-3 text-base font-semibold">
-          Untagged transactions {accountName ? `for ${accountName}` : ""}
-        </h3>
-        {isLoadingTransactions ? <p className="text-sm text-muted-foreground">Loading transactions...</p> : null}
-        {!isLoadingTransactions && !hasTransactions ? (
-          <p className="text-sm text-muted-foreground">No untagged transactions found.</p>
-        ) : null}
-
-        {hasTransactions ? (
-          <div className="overflow-x-auto rounded-lg border border-border bg-background">
+          <div className="overflow-hidden rounded-lg border">
             <Table>
-              <TableHeader>
-                <TableRow className="bg-muted text-left hover:bg-muted">
-                  <TableHead className="px-3 py-2 text-xs uppercase tracking-wide">Date</TableHead>
-                  <TableHead className="px-3 py-2 text-xs uppercase tracking-wide">Description</TableHead>
-                  <TableHead className="px-3 py-2 text-right text-xs uppercase tracking-wide">Amount</TableHead>
-                  <TableHead className="px-3 py-2 text-xs uppercase tracking-wide">Prediction</TableHead>
-                  <TableHead className="px-3 py-2 text-xs uppercase tracking-wide">Tag</TableHead>
-                  <TableHead className="px-3 py-2 text-right text-xs uppercase tracking-wide">Action</TableHead>
+              <TableHeader className="bg-muted">
+                <TableRow>
+                  <TableHead className="w-28">Date</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="hidden md:table-cell">Suggestion</TableHead>
+                  <TableHead className="w-44">Tag</TableHead>
+                  <TableHead className="w-12">
+                    <span className="sr-only">Apply</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.map((tx) => {
-                  const prediction = predictionByTx[tx.id];
-                  const selectedTag = selectedTags[tx.id] ?? "";
+                {untagged.isPending &&
+                  [0, 1, 2, 3].map((i) => (
+                    <TableRow key={i}>
+                      <TableCell colSpan={6}>
+                        <Skeleton className="h-5 w-full" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                {untagged.isSuccess && rows.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                      Every transaction in {account.name} has a tag.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {rows.map((tx) => {
+                  const prediction = predictions[tx.id]
+                  const value = picked[tx.id] ?? ""
                   return (
-                    <TableRow key={tx.id} className="border-t border-border">
-                      <TableCell className="px-3 py-2">{tx.date}</TableCell>
-                      <TableCell className="px-3 py-2">{tx.description}</TableCell>
-                      <TableCell className="px-3 py-2 text-right">{formatMoney(Number(tx.amount))}</TableCell>
-                      <TableCell className="px-3 py-2 text-xs text-muted-foreground">
-                        {prediction
-                          ? `${tags.find((tag) => tag.id === prediction.suggested_tag_id)?.label ?? prediction.suggested_tag_id} (${Math.round(prediction.confidence * 100)}%)`
-                          : "-"}
+                    <TableRow key={tx.id}>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">{formatDate(tx.date)}</TableCell>
+                      <TableCell className="max-w-0 w-full">
+                        <p className="truncate">{tx.description}</p>
+                        {prediction && (
+                          <p className="truncate text-xs text-muted-foreground md:hidden">
+                            Suggested {tagLabel(prediction.tagId)} · {Math.round(prediction.confidence * 100)}%
+                          </p>
+                        )}
                       </TableCell>
-                      <TableCell className="px-3 py-2">
-                        <Select
-                          value={selectedTag}
-                          onChange={(event) => {
-                            setSelectedTags((prev) => ({ ...prev, [tx.id]: event.target.value }));
-                          }}
-                        >
-                          <option value="">Select tag</option>
-                          {tags.map((tag) => (
-                            <option key={tag.id} value={tag.id}>
-                              {tag.label}
-                            </option>
-                          ))}
-                        </Select>
+                      <TableCell className="whitespace-nowrap text-right tabular-nums">
+                        {formatMoney(tx.amount, tx.currency)}
                       </TableCell>
-                      <TableCell className="px-3 py-2 text-right">
+                      <TableCell className="hidden md:table-cell">
+                        {prediction ? <Confidence label={tagLabel(prediction.tagId)} value={prediction.confidence} /> : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <SimpleSelect
+                          aria-label={`Tag for ${tx.description}`}
+                          value={value}
+                          placeholder="Select tag"
+                          onValueChange={(v) => setPicked((p) => ({ ...p, [tx.id]: v }))}
+                          options={tagOptions}
+                        />
+                      </TableCell>
+                      <TableCell>
                         <Button
-                          disabled={!selectedTag || applyTagMutation.isPending}
-                          onClick={() => applyTagMutation.mutate(tx)}
+                          size="icon"
+                          aria-label={`Apply tag to ${tx.description}`}
+                          disabled={!value || apply.isPending}
+                          onClick={() => apply.mutate(tx)}
                         >
-                          Apply
+                          <CheckIcon />
                         </Button>
                       </TableCell>
                     </TableRow>
-                  );
+                  )
                 })}
               </TableBody>
             </Table>
           </div>
-        ) : null}
+        </CardContent>
       </Card>
+    </>
+  )
+}
+
+function Confidence({ label, value }: { label: string; value: number }) {
+  const pct = Math.round(value * 100)
+  return (
+    <div className="flex min-w-32 flex-col gap-1">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="truncate">{label}</span>
+        <span className={cn("tabular-nums", pct < 50 && "text-muted-foreground")}>{pct}%</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-muted" aria-hidden>
+        <div
+          className={cn("h-1.5 rounded-full", pct < 50 ? "bg-muted-foreground/50" : "bg-primary")}
+          style={{ width: `${Math.max(pct, 2)}%` }}
+        />
+      </div>
     </div>
-  );
+  )
 }

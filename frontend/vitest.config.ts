@@ -1,17 +1,17 @@
-import { defineConfig } from "vitest/config";
-import react from "@vitejs/plugin-react";
-import path from "node:path";
+import { defineConfig, mergeConfig } from "vitest/config"
 
-export default defineConfig({
-  plugins: [react()],
-  test: {
-    environment: "happy-dom",
-    setupFiles: ["./tests/setup.ts"],
-    globals: true
-  },
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src")
-    }
-  }
-});
+import viteConfig from "./vite.config"
+
+export default mergeConfig(
+  viteConfig,
+  defineConfig({
+    test: {
+      environment: "happy-dom",
+      globals: true,
+      setupFiles: ["./tests/setup.ts"],
+      // Node 22+ ships its own localStorage global (undefined without
+      // --localstorage-file), which hides happy-dom's. Turn it off in workers.
+      execArgv: ["--no-experimental-webstorage"],
+    },
+  })
+)

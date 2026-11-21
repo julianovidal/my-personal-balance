@@ -1,1206 +1,246 @@
-import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Loader2, MoreHorizontal, SearchX } from "lucide-react";
-import { api } from "@/api/client";
-import { Badge } from "@/components/ui/badge";
-import { ActionsMenu } from "@/components/ui/actions-menu";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatMoney } from "@/lib/utils";
-import { useAccountImportMapping } from "@/hooks/useAccountImportMapping";
+import { useEffect, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { PlusIcon, SearchIcon, UploadIcon } from "lucide-react"
+import { useSearchParams } from "react-router-dom"
+
+import { api } from "@/api/client"
+import { invalidateTransactionQueries, useAccounts, useTags } from "@/api/queries"
 import {
-  Account,
-  ImportPreviewResponse,
-  MonthlyAnalyticsResponse,
-  MonthlySummaryResponse,
-  PaginatedTransactionsResponse,
-  SplitTransactionResponse,
-  TagMonthlyTrendResponse,
-  Tag,
-  Transaction
-} from "@/types";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { getApiErrorMessage } from "@/lib/auth-errors"
+import { formatMoney } from "@/lib/money"
+import type { Account, MonthlySummaryResponse, PaginatedTransactionsResponse, Transaction } from "@/types"
 
-const CURRENCIES = ["EUR", "USD", "BRL"] as const;
-type DateRangePreset =
-  | "this_month"
-  | "last_month"
-  | "this_year"
-  | "last_year"
-  | "last_3_months"
-  | "last_6_months"
-  | "last_12_months"
-  | "custom";
+import { formatDate } from "./transactions/dates"
+import { ExpenseCharts } from "./transactions/ExpenseCharts"
+import { ALL, filterParams, filtersFromSearch, type Filters } from "./transactions/filters"
+import { ImportDialog } from "./transactions/ImportDialog"
+import { SplitDialog } from "./transactions/SplitDialog"
+import { SummaryCards } from "./transactions/SummaryCards"
+import { TransactionFilters } from "./transactions/TransactionFilters"
+import { TransactionFormDialog } from "./transactions/TransactionFormDialog"
+import { TransactionsTable } from "./transactions/TransactionsTable"
 
-const labelClass = "mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground";
-
-function toDateInputValue(value: Date) {
-  const y = value.getFullYear();
-  const m = String(value.getMonth() + 1).padStart(2, "0");
-  const d = String(value.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function fromDateInputValue(value: string) {
-  const [y, m, d] = value.split("-").map(Number);
-  return new Date(y, (m || 1) - 1, d || 1);
-}
-
-function isEndOfMonth(value: Date) {
-  return value.getDate() === new Date(value.getFullYear(), value.getMonth() + 1, 0).getDate();
-}
-
-function shiftDateInputByMonths(value: string, months: number, keepMonthEnd = false) {
-  const source = fromDateInputValue(value);
-  const day = source.getDate();
-  const targetYear = source.getFullYear();
-  const targetMonth = source.getMonth() + months;
-  const targetLastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
-  const targetDay = keepMonthEnd && isEndOfMonth(source) ? targetLastDay : Math.min(day, targetLastDay);
-  return toDateInputValue(new Date(targetYear, targetMonth, targetDay));
-}
-
-function getDateRangeFromPreset(preset: Exclude<DateRangePreset, "custom">, now: Date) {
-  const year = now.getFullYear();
-  const month = now.getMonth();
-
-  if (preset === "this_month") {
-    return {
-      from: toDateInputValue(new Date(year, month, 1)),
-      to: toDateInputValue(new Date(year, month + 1, 0))
-    };
-  }
-
-  if (preset === "last_month") {
-    return {
-      from: toDateInputValue(new Date(year, month - 1, 1)),
-      to: toDateInputValue(new Date(year, month, 0))
-    };
-  }
-
-  if (preset === "this_year") {
-    return {
-      from: toDateInputValue(new Date(year, 0, 1)),
-      to: toDateInputValue(new Date(year, 11, 31))
-    };
-  }
-
-  if (preset === "last_year") {
-    return {
-      from: toDateInputValue(new Date(year - 1, 0, 1)),
-      to: toDateInputValue(new Date(year - 1, 11, 31))
-    };
-  }
-
-  const monthSpan = preset === "last_3_months" ? 3 : preset === "last_6_months" ? 6 : 12;
-  return {
-    from: toDateInputValue(new Date(year, month - (monthSpan - 1), 1)),
-    to: toDateInputValue(new Date(year, month + 1, 0))
-  };
-}
-
-function ExpenseBars({ title, rows }: { title: string; rows: { label: string; total_expense: string }[] }) {
-  const max = rows.length ? Math.max(...rows.map((row) => Number(row.total_expense))) : 0;
-
-  return (
-    <Card className="p-5">
-      <h3 className="mb-3 text-base font-semibold">{title}</h3>
-      <div className="space-y-2">
-        {rows.length === 0 ? <p className="text-sm text-muted-foreground">No expenses for selected filters.</p> : null}
-        {rows.map((row) => {
-          const value = Number(row.total_expense);
-          const pct = max > 0 ? Math.max((value / max) * 100, 2) : 0;
-          return (
-            <div key={row.label}>
-              <div className="mb-1 flex items-center justify-between text-xs">
-                <span>{row.label}</span>
-                <span className="font-semibold">{formatMoney(value)}</span>
-              </div>
-              <div className="h-2 rounded-full bg-muted">
-                <div className="h-2 rounded-full bg-primary" style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Card>
-  );
-}
-
-function TagTrendBars({ rows }: { rows: { month: string; total_expense: string }[] }) {
-  const max = rows.length ? Math.max(...rows.map((row) => Number(row.total_expense))) : 0;
-
-  return (
-    <Card className="p-5">
-      <h3 className="mb-3 text-base font-semibold">Selected tag expense trend (last 12 months)</h3>
-      <div className="space-y-2">
-        {rows.length === 0 ? <p className="text-sm text-muted-foreground">Select a tag to see trend.</p> : null}
-        {rows.map((row) => {
-          const value = Number(row.total_expense);
-          const pct = max > 0 ? Math.max((value / max) * 100, 2) : 0;
-          return (
-            <div key={row.month}>
-              <div className="mb-1 flex items-center justify-between text-xs">
-                <span>{row.month}</span>
-                <span className="font-semibold">{formatMoney(value)}</span>
-              </div>
-              <div className="h-2 rounded-full bg-muted">
-                <div className="h-2 rounded-full bg-primary" style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Card>
-  );
+/**
+ * Totals from the backend add every account together. They only get a currency
+ * symbol when everything in scope shares one currency.
+ */
+function scopeCurrency(accounts: Account[], accountId: string) {
+  if (accountId !== ALL) return accounts.find((a) => String(a.id) === accountId)?.currency ?? null
+  const currencies = new Set(accounts.map((a) => a.currency))
+  return currencies.size === 1 ? [...currencies][0] : null
 }
 
 export function TransactionsPage() {
-  const qc = useQueryClient();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const now = new Date();
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const qc = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const action = searchParams.get("action")
 
-  const [dateFrom, setDateFrom] = useState(toDateInputValue(currentMonthStart));
-  const [dateTo, setDateTo] = useState(toDateInputValue(currentMonthEnd));
-  const [datePreset, setDatePreset] = useState<DateRangePreset>("this_month");
-  const [accountFilter, setAccountFilter] = useState("");
-  const [tagFilter, setTagFilter] = useState("");
-  const [textFilter, setTextFilter] = useState("");
-  const [trendTagId, setTrendTagId] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const accounts = useAccounts().data ?? []
+  const tags = useTags().data ?? []
 
-  const [accountId, setAccountId] = useState("");
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState("EUR");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [createTagId, setCreateTagId] = useState("");
-  const [isTransfer, setIsTransfer] = useState(false);
-  const [destinationAccountId, setDestinationAccountId] = useState("");
+  const [filters, setFilters] = useState<Filters>(() => filtersFromSearch(searchParams))
+  const [search, setSearch] = useState("")
+  const debouncedSearch = useDebouncedValue(search.trim())
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
 
-  const [uploadAccountId, setUploadAccountId] = useState("");
-  const [uploadTagId, setUploadTagId] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [importPreview, setImportPreview] = useState<ImportPreviewResponse | null>(null);
-  const [importResult, setImportResult] = useState<string>("");
-
-  const [editing, setEditing] = useState<Transaction | null>(null);
-  const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
-  const [openActionsMenuId, setOpenActionsMenuId] = useState<number | null>(null);
-  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
-  const [splitParent, setSplitParent] = useState<Transaction | null>(null);
-  const [splitRows, setSplitRows] = useState<Array<{ id?: number; description: string; amount: string; tag_id: string }>>([]);
-  const [splitResult, setSplitResult] = useState("");
+  // Links like /transactions?action=add (used by the dashboard) open a dialog once.
+  const [form, setForm] = useState<{ open: boolean; tx: Transaction | null }>(() => ({
+    open: action === "add",
+    tx: null,
+  }))
+  const [importOpen, setImportOpen] = useState(action === "import")
+  const [splitTx, setSplitTx] = useState<Transaction | null>(null)
+  const [toDelete, setToDelete] = useState<Transaction | null>(null)
 
   useEffect(() => {
-    const action = searchParams.get("action");
-    if (action === "add") {
-      setEditing(null);
-      setDate(new Date().toISOString().slice(0, 10));
-      setDescription("");
-      setAmount("");
-      setCurrency("EUR");
-      setAccountId("");
-      setCreateTagId("");
-      setIsTransactionModalOpen(true);
-      navigate("/transactions", { replace: true });
-    }
-    if (action === "import") {
-      setUploadAccountId("");
-      setUploadTagId("");
-      setFile(null);
-      setImportPreview(null);
-      setImportResult("");
-      setIsImportModalOpen(true);
-      navigate("/transactions", { replace: true });
-    }
-  }, [searchParams, navigate]);
+    if (action) setSearchParams({}, { replace: true })
+  }, [action, setSearchParams])
 
-  const { data: accounts = [] } = useQuery({
-    queryKey: ["accounts"],
-    queryFn: async () => (await api.get<Account[]>("/accounts")).data
-  });
+  const changeFilters = (next: Filters) => {
+    setFilters(next)
+    setPage(1)
+  }
 
-  const { data: tags = [] } = useQuery({
-    queryKey: ["tags"],
-    queryFn: async () => (await api.get<Tag[]>("/tags")).data
-  });
-
-  const { data: importMapping, isPending: isMappingPending } = useAccountImportMapping(
-    uploadAccountId,
-    isImportModalOpen
-  );
-
-  const isMappingConfigured = Boolean(
-    importMapping &&
-      [importMapping.date_column, importMapping.description_column, importMapping.amount_column, importMapping.currency_column, importMapping.tag_id_column].some(
-        (column) => column !== null
-      )
-  );
-  const showMappingWarning = Boolean(uploadAccountId) && !isMappingPending && !isMappingConfigured;
-
-  const { data: txResponse, isLoading: isTransactionsLoading } = useQuery({
-    queryKey: ["transactions", dateFrom, dateTo, accountFilter, tagFilter, textFilter, page, pageSize],
+  const list = useQuery({
+    queryKey: [
+      "transactions",
+      filters.from,
+      filters.to,
+      filters.accountId,
+      filters.tagId,
+      debouncedSearch,
+      page,
+      pageSize,
+    ],
+    placeholderData: (previous) => previous,
     queryFn: async () => {
-      const params = new URLSearchParams({
-        date_from: dateFrom,
-        date_to: dateTo,
-        page: String(page),
-        page_size: String(pageSize)
-      });
-      if (accountFilter) params.set("account_id", accountFilter);
-      if (tagFilter) params.set("tag_id", tagFilter);
-      if (textFilter.trim()) params.set("search_text", textFilter.trim());
-      const res = await api.get<PaginatedTransactionsResponse>(`/transactions?${params.toString()}`);
-      return res.data;
-    }
-  });
-
-  const { data: analytics } = useQuery({
-    queryKey: ["transactions-analytics", dateFrom, dateTo, accountFilter, tagFilter],
-    queryFn: async () => {
-      const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
-      if (accountFilter) params.set("account_id", accountFilter);
-      if (tagFilter) params.set("tag_id", tagFilter);
-      const res = await api.get<MonthlyAnalyticsResponse>(`/transactions/analytics/monthly?${params.toString()}`);
-      return res.data;
-    }
-  });
-
-  const { data: trendData } = useQuery({
-    queryKey: ["transactions-tag-trend", trendTagId, accountFilter],
-    enabled: Boolean(trendTagId),
-    queryFn: async () => {
-      const params = new URLSearchParams({ tag_id: trendTagId });
-      if (accountFilter) params.set("account_id", accountFilter);
-      const res = await api.get<TagMonthlyTrendResponse>(`/transactions/analytics/tag-trend?${params.toString()}`);
-      return res.data;
-    }
-  });
-
-  const { data: monthlySummary } = useQuery({
-    queryKey: ["transactions-summary", dateFrom, dateTo, accountFilter, tagFilter],
-    queryFn: async () => {
-      const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
-      if (accountFilter) params.set("account_id", accountFilter);
-      if (tagFilter) params.set("tag_id", tagFilter);
-      const res = await api.get<MonthlySummaryResponse>(`/transactions/summary/monthly?${params.toString()}`);
-      return res.data;
-    }
-  });
-
-  const transactions = txResponse?.items ?? [];
-  const isTransactionsEmpty = !isTransactionsLoading && transactions.length === 0;
-
-  const saveTx = useMutation({
-    mutationFn: async () => {
-      const payload = {
-        date,
-        description,
-        account_id: Number(accountId),
-        tag_id: isTransfer ? null : (createTagId ? Number(createTagId) : null),
-        is_transfer: isTransfer,
-        destination_account_id: isTransfer ? Number(destinationAccountId) : null,
-        amount,
-        currency
-      };
-
-      if (editing) {
-        await api.put(`/transactions/${editing.id}`, payload);
-      } else {
-        await api.post("/transactions", payload);
-      }
+      const params = filterParams(filters)
+      params.set("page", String(page))
+      params.set("page_size", String(pageSize))
+      if (debouncedSearch) params.set("search_text", debouncedSearch)
+      return (await api.get<PaginatedTransactionsResponse>(`/transactions?${params}`)).data
     },
+  })
+
+  const summary = useQuery({
+    queryKey: ["transactions-summary", filters.from, filters.to, filters.accountId, filters.tagId],
+    queryFn: async () =>
+      (await api.get<MonthlySummaryResponse>(`/transactions/summary/monthly?${filterParams(filters)}`)).data,
+  })
+
+  const remove = useMutation({
+    mutationFn: (id: number) => api.delete(`/transactions/${id}`),
     onSuccess: () => {
-      clearTransactionForm();
-      setIsTransactionModalOpen(false);
-      invalidateTransactionQueries(qc);
-    }
-  });
-
-  const deleteTx = useMutation({
-    mutationFn: async (id: number) => api.delete(`/transactions/${id}`),
-    onSuccess: () => {
-      setTransactionToDelete(null);
-      invalidateTransactionQueries(qc);
-    }
-  });
-
-  const previewUpload = useMutation({
-    mutationFn: async () => {
-      if (!file || !uploadAccountId) return;
-      const data = new FormData();
-      data.append("file", file);
-      const query = uploadTagId ? `?default_tag_id=${uploadTagId}` : "";
-      const res = await api.post<ImportPreviewResponse>(`/transactions/import/preview/${uploadAccountId}${query}`, data, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
-      return res.data;
+      setToDelete(null)
+      invalidateTransactionQueries(qc)
     },
-    onSuccess: (data) => {
-      if (!data) return;
-      setImportPreview(data);
-      setImportResult("");
-    }
-  });
+  })
 
-  const upload = useMutation({
-    mutationFn: async () => {
-      if (!file || !uploadAccountId) return;
-      const data = new FormData();
-      data.append("file", file);
-      const query = uploadTagId ? `?default_tag_id=${uploadTagId}` : "";
-      const res = await api.post<{ imported: number; skipped: number }>(`/transactions/import/${uploadAccountId}${query}`, data, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
-      return res.data;
-    },
-    onSuccess: (data) => {
-      if (!data) return;
-      setImportResult(`Imported ${data.imported} rows, skipped ${data.skipped}.`);
-      setImportPreview(null);
-      setFile(null);
-      invalidateTransactionQueries(qc);
-    }
-  });
-
-  const saveSplits = useMutation({
-    mutationFn: async () => {
-      if (!splitParent) return;
-      const payload = {
-        rows: splitRows.map((row) => ({
-          id: row.id ?? null,
-          description: row.description,
-          amount: Number(row.amount),
-          tag_id: row.tag_id ? Number(row.tag_id) : null
-        }))
-      };
-      const res = await api.put<SplitTransactionResponse>(`/transactions/${splitParent.id}/splits`, payload);
-      return res.data;
-    },
-    onSuccess: (data) => {
-      if (!data) return;
-      setSplitResult(`Saved splits. Remaining: ${formatMoney(data.remaining_amount)}`);
-      setSplitRows(
-        data.rows.map((row) => ({
-          id: row.id,
-          description: row.description,
-          amount: String(Math.abs(Number(row.amount))),
-          tag_id: row.tag_id ? String(row.tag_id) : ""
-        }))
-      );
-      invalidateTransactionQueries(qc);
-    }
-  });
-
-  const confirmDeleteTransaction = () => {
-    if (!transactionToDelete || transactionToDelete.id <= 0) return;
-    deleteTx.mutate(transactionToDelete.id);
-  };
-
-  const openSplitModal = async (tx: Transaction) => {
-    const targetId = tx.parent_transaction_id ?? (tx.id > 0 ? tx.id : null);
-    if (!targetId) return;
-    const res = await api.get<SplitTransactionResponse>(`/transactions/${targetId}/splits`);
-    setSplitParent(res.data.parent);
-    setSplitRows(
-      res.data.rows.map((row) => ({
-        id: row.id,
-        description: row.description,
-        amount: String(Math.abs(Number(row.amount))),
-        tag_id: row.tag_id ? String(row.tag_id) : ""
-      }))
-    );
-    setSplitResult("");
-    setIsSplitModalOpen(true);
-  };
-
-  const startEdit = (tx: Transaction) => {
-    setEditing(tx);
-    setDate(tx.date);
-    setDescription(tx.description);
-    setAmount(tx.is_transfer ? String(Math.abs(Number(tx.amount))) : tx.amount);
-    setCurrency(tx.currency);
-    if (tx.is_transfer) {
-      setIsTransfer(true);
-      if (tx.transfer_direction === "in") {
-        setAccountId(tx.linked_account_id ? String(tx.linked_account_id) : "");
-        setDestinationAccountId(String(tx.account_id));
-      } else {
-        setAccountId(String(tx.account_id));
-        setDestinationAccountId(tx.linked_account_id ? String(tx.linked_account_id) : "");
-      }
-      setCreateTagId("");
-    } else {
-      setIsTransfer(false);
-      setAccountId(String(tx.account_id));
-      setDestinationAccountId("");
-      setCreateTagId(tx.tag_id ? String(tx.tag_id) : "");
-    }
-    setIsTransactionModalOpen(true);
-  };
-
-  const clearTransactionForm = () => {
-    setEditing(null);
-    setDate(new Date().toISOString().slice(0, 10));
-    setDescription("");
-    setAmount("");
-    setCurrency("EUR");
-    setAccountId("");
-    setCreateTagId("");
-    setIsTransfer(false);
-    setDestinationAccountId("");
-  };
-
-  const resetImportForm = () => {
-    setUploadAccountId("");
-    setUploadTagId("");
-    setFile(null);
-    setImportPreview(null);
-    setImportResult("");
-  };
-
-  const onFilterChange = (setter: (value: string) => void, value: string) => {
-    setter(value);
-    setPage(1);
-  };
-
-  const onDatePresetChange = (preset: DateRangePreset) => {
-    setDatePreset(preset);
-    if (preset === "custom") return;
-    const range = getDateRangeFromPreset(preset, new Date());
-    setDateFrom(range.from);
-    setDateTo(range.to);
-    setPage(1);
-  };
-
-  const shiftDateRangeByMonths = (months: number) => {
-    setDatePreset("custom");
-    setDateFrom((prev) => shiftDateInputByMonths(prev, months));
-    setDateTo((prev) => shiftDateInputByMonths(prev, months, true));
-    setPage(1);
-  };
-
-  const clearFilters = () => {
-    setAccountFilter("");
-    setTagFilter("");
-    setTextFilter("");
-    setPage(1);
-  };
-
-  const downloadTemplate = () => {
-    const content = [
-      "date,description,amount,currency,tag_id",
-      "2026-02-01,Supermarket,-82.45,EUR,",
-      "2026-02-03,Salary,3200.00,EUR,"
-    ].join("\n");
-
-    const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", "transactions_template.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const onAccountChange = (nextAccountId: string) => {
-    setAccountId(nextAccountId);
-    const selected = accounts.find((a) => String(a.id) === nextAccountId);
-    if (selected) {
-      setCurrency(selected.currency);
-    }
-    if (destinationAccountId && destinationAccountId === nextAccountId) {
-      setDestinationAccountId("");
-    }
-  };
-
-  const addSplitRow = () => {
-    setSplitRows((prev) => [...prev, { description: "", amount: "", tag_id: "" }]);
-  };
-
-  const updateSplitRow = (index: number, field: "description" | "amount" | "tag_id", value: string) => {
-    setSplitRows((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
-  };
-
-  const removeSplitRow = (index: number) => {
-    setSplitRows((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const splitRemaining = useMemo(() => {
-    if (!splitParent) return 0;
-    const total = splitRows.reduce((acc, row) => acc + (Number(row.amount) || 0), 0);
-    return Math.abs(Number(splitParent.amount)) - total;
-  }, [splitParent, splitRows]);
+  const currency = scopeCurrency(accounts, filters.accountId)
+  const periodLabel = `${formatDate(filters.from)} – ${formatDate(filters.to)}`
 
   return (
-    <div className="space-y-4">
-      <Card className="p-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Filters</h2>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => {
-                clearTransactionForm();
-                setIsTransactionModalOpen(true);
-              }}
-            >
-              Add transaction
+    <div className="flex flex-col gap-4 md:gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+          <CardDescription>Apply to the totals, charts and list below.</CardDescription>
+          <CardAction className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <UploadIcon />
+              <span className="hidden sm:inline">Import</span>
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                resetImportForm();
-                setIsImportModalOpen(true);
-              }}
-            >
-              Import transactions
+            <Button onClick={() => setForm({ open: true, tx: null })}>
+              <PlusIcon />
+              <span className="hidden sm:inline">Add transaction</span>
             </Button>
-          </div>
-        </div>
-        <div className="grid gap-3 md:grid-cols-6">
-          <div>
-            <Label className={labelClass}>Date range</Label>
-            <Select value={datePreset} onChange={(event) => onDatePresetChange(event.target.value as DateRangePreset)}>
-              <option value="this_month">This month</option>
-              <option value="last_month">Last month</option>
-              <option value="this_year">This year</option>
-              <option value="last_year">Last year</option>
-              <option value="last_3_months">Last 3 months</option>
-              <option value="last_6_months">Last 6 months</option>
-              <option value="last_12_months">Last 12 months</option>
-              <option value="custom">Custom</option>
-            </Select>
-            <div className="mt-2 flex gap-2">
-              <Button variant="outline" type="button" onClick={() => shiftDateRangeByMonths(-1)}>
-                -1 month
-              </Button>
-              <Button variant="outline" type="button" onClick={() => shiftDateRangeByMonths(1)}>
-                +1 month
-              </Button>
-            </div>
-          </div>
-          <div>
-            <Label className={labelClass}>From</Label>
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => {
-                setDatePreset("custom");
-                onFilterChange(setDateFrom, e.target.value);
-              }}
-            />
-          </div>
-          <div>
-            <Label className={labelClass}>To</Label>
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => {
-                setDatePreset("custom");
-                onFilterChange(setDateTo, e.target.value);
-              }}
-            />
-          </div>
-          <div>
-            <Label className={labelClass}>Account</Label>
-            <Select value={accountFilter} onChange={(event) => onFilterChange(setAccountFilter, event.target.value)}>
-              <option value="">All accounts</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label className={labelClass}>Tag</Label>
-            <Select value={tagFilter} onChange={(event) => onFilterChange(setTagFilter, event.target.value)}>
-              <option value="">All tags</option>
-              {tags.map((tag) => (
-                <option key={tag.id} value={tag.id}>{tag.label}</option>
-              ))}
-            </Select>
-          </div>
-        </div>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          <TransactionFilters filters={filters} onChange={changeFilters} accounts={accounts} tags={tags} />
+        </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="p-5">
-          <h3 className="text-sm uppercase tracking-wide text-muted-foreground">Income</h3>
-          <p className="mt-2 text-2xl font-semibold">{formatMoney(monthlySummary?.overall.income ?? 0)}</p>
-        </Card>
-        <Card className="p-5">
-          <h3 className="text-sm uppercase tracking-wide text-muted-foreground">Expenses</h3>
-          <p className="mt-2 text-2xl font-semibold">{formatMoney(monthlySummary?.overall.expenses ?? 0)}</p>
-        </Card>
-        <Card className="p-5">
-          <h3 className="text-sm uppercase tracking-wide text-muted-foreground">Net</h3>
-          <p className="mt-2 text-2xl font-semibold">{formatMoney(monthlySummary?.overall.net ?? 0)}</p>
-        </Card>
-      </div>
+      <SummaryCards
+        summary={summary.data}
+        loading={summary.isPending}
+        currency={currency}
+        periodLabel={periodLabel}
+      />
+      {currency === null && (
+        <p className="-mt-2 text-xs text-muted-foreground">
+          Your accounts use different currencies, so totals and charts add them without converting.
+          Pick one account to see a single currency.
+        </p>
+      )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <ExpenseBars title="Monthly expenses by tag" rows={analytics?.by_tag ?? []} />
-        <div className="space-y-3">
-          <Card className="p-5">
-            <Label className={labelClass}>Trend tag</Label>
-            <Select value={trendTagId} onChange={(event) => setTrendTagId(event.target.value)}>
-              <option value="">Select tag</option>
-              {tags.map((tag) => (
-                <option key={tag.id} value={tag.id}>{tag.label}</option>
-              ))}
-            </Select>
-          </Card>
-          <TagTrendBars rows={trendData?.points ?? []} />
-        </div>
-      </div>
+      <ExpenseCharts filters={filters} tags={tags} currency={currency} />
 
-      <Card className="p-5">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">Transactions</h2>
-            <p className="text-sm text-muted-foreground">Browse, filter, and manage your records.</p>
-          </div>
-          <div className="w-full md:w-[32rem]">
-            <div>
-              <Label className={labelClass}>Search text</Label>
+      <Card>
+        <CardHeader>
+          <CardTitle>Transactions</CardTitle>
+          <CardDescription>{periodLabel}</CardDescription>
+          <CardAction className="w-44 sm:w-64">
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                value={textFilter}
+                aria-label="Search descriptions"
+                placeholder="Search descriptions"
+                className="pl-7"
+                value={search}
                 onChange={(e) => {
-                  setTextFilter(e.target.value);
-                  setPage(1);
+                  setSearch(e.target.value)
+                  setPage(1)
                 }}
-                placeholder="Filter by description"
               />
             </div>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto rounded-lg border border-border bg-background">
-          <Table>
-            <TableHeader>
-              <TableRow className="sticky top-0 z-10 bg-muted hover:bg-muted">
-                <TableHead className="px-3 py-2">Date</TableHead>
-                <TableHead className="px-3 py-2">Description</TableHead>
-                <TableHead className="px-3 py-2">Account</TableHead>
-                <TableHead className="px-3 py-2 text-right">Amount</TableHead>
-                <TableHead className="px-3 py-2">Currency</TableHead>
-                <TableHead className="px-3 py-2">Tag</TableHead>
-                <TableHead className="px-3 py-2">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isTransactionsLoading ? (
-                Array.from({ length: 8 }).map((_, index) => (
-                  <TableRow key={`loading-${index}`} className="border-t border-border">
-                    <TableCell className="px-3 py-2"><div className="h-4 w-20 animate-pulse rounded bg-muted" /></TableCell>
-                    <TableCell className="px-3 py-2"><div className="h-4 w-48 animate-pulse rounded bg-muted" /></TableCell>
-                    <TableCell className="px-3 py-2"><div className="h-4 w-24 animate-pulse rounded bg-muted" /></TableCell>
-                    <TableCell className="px-3 py-2"><div className="ml-auto h-4 w-20 animate-pulse rounded bg-muted" /></TableCell>
-                    <TableCell className="px-3 py-2"><div className="h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
-                    <TableCell className="px-3 py-2"><div className="h-4 w-16 animate-pulse rounded bg-muted" /></TableCell>
-                    <TableCell className="px-3 py-2"><div className="h-8 w-8 animate-pulse rounded bg-muted" /></TableCell>
-                  </TableRow>
-                ))
-              ) : null}
-
-              {transactions.map((tx, index) => (
-                <TableRow
-                  key={tx.id}
-                  className={`border-t border-border transition-colors hover:bg-muted/60 ${index % 2 === 0 ? "bg-background" : "bg-muted/20"} ${tx.parent_transaction_id ? "bg-muted/50" : ""}`}
-                >
-                  <TableCell className="px-3 py-2">{tx.date}</TableCell>
-                  <TableCell className="px-3 py-2">{tx.description}</TableCell>
-                  <TableCell className="px-3 py-2">{accounts.find((a) => a.id === tx.account_id)?.name ?? "-"}</TableCell>
-                  <TableCell className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(tx.amount)}</TableCell>
-                  <TableCell className="px-3 py-2">{tx.currency}</TableCell>
-                  <TableCell className="px-3 py-2">{tx.is_transfer ? "-" : (tags.find((t) => t.id === tx.tag_id)?.label ?? "-")}</TableCell>
-                  <TableCell className="px-3 py-2">
-                    <ActionsMenu
-                      open={openActionsMenuId === tx.id}
-                      onOpenChange={(next) => setOpenActionsMenuId(next ? tx.id : null)}
-                      trigger={
-                        <Button variant="outline" className="h-8 w-8 p-0" aria-label="Open actions menu">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      }
-                    >
-                      {tx.parent_transaction_id ? (
-                        <button
-                          type="button"
-                          className="w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
-                          onClick={() => {
-                            openSplitModal(tx);
-                            setOpenActionsMenuId(null);
-                          }}
-                        >
-                          Split
-                        </button>
-                      ) : (
-                        <>
-                          {tx.id > 0 ? (
-                            <button
-                              type="button"
-                              className="w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
-                              onClick={() => {
-                                startEdit(tx);
-                                setOpenActionsMenuId(null);
-                              }}
-                            >
-                              Edit
-                            </button>
-                          ) : null}
-                          {tx.id > 0 && !tx.is_transfer ? (
-                            <button
-                              type="button"
-                              className="w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
-                              onClick={() => {
-                                openSplitModal(tx);
-                                setOpenActionsMenuId(null);
-                              }}
-                            >
-                              Split
-                            </button>
-                          ) : null}
-                          {tx.id > 0 ? (
-                            <button
-                              type="button"
-                              className="w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
-                              onClick={() => {
-                                setTransactionToDelete(tx);
-                                setOpenActionsMenuId(null);
-                              }}
-                            >
-                              Delete
-                            </button>
-                          ) : null}
-                        </>
-                      )}
-                    </ActionsMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-
-              {isTransactionsEmpty ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="px-6 py-12">
-                    <div className="flex flex-col items-center justify-center gap-3 text-center">
-                      <SearchX className="h-6 w-6 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">No transactions found</p>
-                        <p className="text-sm text-muted-foreground">Try changing your filters or clear them to see results.</p>
-                      </div>
-                      <Button variant="outline" onClick={clearFilters}>Clear filters</Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-          <p className="text-muted-foreground">
-            {isTransactionsLoading ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Loading transactions...
-              </span>
-            ) : (
-              <>Showing {transactions.length} of {txResponse?.total ?? 0} results</>
-            )}
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Page size</span>
-              <div className="w-20">
-                <Select
-                  value={String(pageSize)}
-                  onChange={(event) => {
-                    setPageSize(Number(event.target.value));
-                    setPage(1);
-                  }}
-                >
-                  <option value="10">10</option>
-                  <option value="20">20</option>
-                  <option value="50">50</option>
-                </Select>
-              </div>
-            </div>
-            <Button variant="outline" onClick={() => setPage((p) => Math.max(p - 1, 1))} disabled={page <= 1}>
-              Previous
-            </Button>
-            <span>
-              Page {txResponse?.page ?? 1} / {Math.max(txResponse?.total_pages ?? 1, 1)}
-            </span>
-            <Button
-              variant="outline"
-              onClick={() => setPage((p) => p + 1)}
-              disabled={(txResponse?.total_pages ?? 0) === 0 || page >= (txResponse?.total_pages ?? 0)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          {list.isError ? (
+            <p role="alert" className="text-sm text-destructive">
+              Couldn't load transactions. {getApiErrorMessage(list.error)}
+            </p>
+          ) : (
+            <TransactionsTable
+              data={list.data}
+              loading={list.isPending}
+              accounts={accounts}
+              tags={tags}
+              page={page}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size)
+                setPage(1)
+              }}
+              onEdit={(tx) => setForm({ open: true, tx })}
+              onSplit={setSplitTx}
+              onDelete={setToDelete}
+              onClearFilters={() => {
+                changeFilters({ ...filters, accountId: ALL, tagId: ALL })
+                setSearch("")
+              }}
+            />
+          )}
+        </CardContent>
       </Card>
 
-      {/* Delete transaction dialog */}
-      <Dialog open={Boolean(transactionToDelete)} onOpenChange={(open) => { if (!open) setTransactionToDelete(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete transaction</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Are you sure you want to delete this transaction?
+      <TransactionFormDialog
+        open={form.open}
+        transaction={form.tx}
+        accounts={accounts}
+        tags={tags}
+        onOpenChange={(open) => setForm((f) => ({ ...f, open }))}
+      />
+      <ImportDialog open={importOpen} accounts={accounts} tags={tags} onOpenChange={setImportOpen} />
+      <SplitDialog transaction={splitTx} tags={tags} onClose={() => setSplitTx(null)} />
+
+      <AlertDialog open={toDelete !== null} onOpenChange={(open) => !open && setToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this transaction?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {toDelete && (
+                <>
+                  {formatDate(toDelete.date)} · {toDelete.description} ·{" "}
+                  {formatMoney(toDelete.amount, toDelete.currency)}
+                  {toDelete.is_transfer && ". Both sides of the transfer are deleted."}
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {remove.isError && (
+            <p role="alert" className="text-sm text-destructive">
+              {getApiErrorMessage(remove.error)}
             </p>
-            <p className="text-sm">
-              <span className="font-semibold">{transactionToDelete?.date}</span>
-              {" - "}
-              <span className="font-semibold">{transactionToDelete?.description}</span>
-              {" - "}
-              <span className="font-semibold">
-                {formatMoney(transactionToDelete?.amount)} {transactionToDelete?.currency}
-              </span>
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setTransactionToDelete(null)}>Cancel</Button>
-              <Button variant="destructive" onClick={confirmDeleteTransaction} disabled={deleteTx.isPending}>
-                {deleteTx.isPending ? "Deleting..." : "Delete transaction"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add / Edit transaction dialog */}
-      <Dialog
-        open={isTransactionModalOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setIsTransactionModalOpen(false);
-            clearTransactionForm();
-          }
-        }}
-      >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit transaction" : "Add transaction"}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={(e) => { e.preventDefault(); saveTx.mutate(); }} className="space-y-3">
-            <div>
-              <Label className={labelClass}>Account</Label>
-              <Select value={accountId} onChange={(event) => onAccountChange(event.target.value)} required>
-                <option value="">Select account</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <Label className={labelClass}>Date</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-            </div>
-            <div className="flex items-center gap-2 rounded-lg border border-border p-3">
-              <input
-                id="is_transfer"
-                type="checkbox"
-                checked={isTransfer}
-                onChange={(e) => setIsTransfer(e.target.checked)}
-              />
-              <Label className={labelClass}>Account transfer</Label>
-            </div>
-            <div>
-              <Label className={labelClass}>Description</Label>
-              <Input value={description} onChange={(e) => setDescription(e.target.value)} required />
-            </div>
-            <div>
-              <Label className={labelClass}>Amount</Label>
-              <Input value={amount} onChange={(e) => setAmount(e.target.value)} required />
-            </div>
-            <div>
-              <Label className={labelClass}>Currency</Label>
-              <Select value={currency} onChange={(event) => setCurrency(event.target.value)} required>
-                {CURRENCIES.map((curr) => (
-                  <option key={curr} value={curr}>{curr}</option>
-                ))}
-              </Select>
-            </div>
-            {isTransfer ? (
-              <div>
-                <Label className={labelClass}>Destination account</Label>
-                <Select value={destinationAccountId} onChange={(event) => setDestinationAccountId(event.target.value)} required>
-                  <option value="">Select destination</option>
-                  {accounts
-                    .filter((a) => String(a.id) !== accountId)
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>{a.name}</option>
-                    ))}
-                </Select>
-              </div>
-            ) : (
-              <div>
-                <Label className={labelClass}>Tag</Label>
-                <Select value={createTagId} onChange={(event) => setCreateTagId(event.target.value)}>
-                  <option value="">No tag</option>
-                  {tags.map((tag) => (
-                    <option key={tag.id} value={tag.id}>{tag.label}</option>
-                  ))}
-                </Select>
-              </div>
-            )}
-            <Button type="submit" className="w-full">{editing ? "Update" : "Save"}</Button>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Import CSV / XLSX dialog */}
-      <Dialog
-        open={isImportModalOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setIsImportModalOpen(false);
-            resetImportForm();
-          }
-        }}
-      >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Import CSV / XLSX</DialogTitle>
-          </DialogHeader>
-          <div className="mb-3">
-            <Button variant="outline" onClick={downloadTemplate}>Download CSV template</Button>
-          </div>
-
-          <form onSubmit={(e) => { e.preventDefault(); previewUpload.mutate(); }} className="space-y-3">
-            <div>
-              <Label className={labelClass}>Account</Label>
-              <Select
-                value={uploadAccountId}
-                onChange={(event) => {
-                  setUploadAccountId(event.target.value);
-                  setImportPreview(null);
-                  setImportResult("");
-                }}
-                required
-              >
-                <option value="">Select account</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <Label className={labelClass}>Default tag (optional)</Label>
-              <Select
-                value={uploadTagId}
-                onChange={(event) => {
-                  setUploadTagId(event.target.value);
-                  setImportPreview(null);
-                  setImportResult("");
-                }}
-              >
-                <option value="">No default tag</option>
-                {tags.map((tag) => (
-                  <option key={tag.id} value={tag.id}>{tag.label}</option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <Label className={labelClass}>File</Label>
-              <Input
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={(e) => {
-                  setFile(e.target.files?.[0] ?? null);
-                  setImportPreview(null);
-                  setImportResult("");
-                }}
-                required
-              />
-            </div>
-            {showMappingWarning ? (
-              <p className="text-sm text-muted-foreground">
-                This account has no import settings configured yet. Set them under{" "}
-                <Link
-                  to="/accounts"
-                  className="underline"
-                  onClick={() => {
-                    setIsImportModalOpen(false);
-                    resetImportForm();
-                  }}
-                >
-                  Accounts
-                </Link>{" "}
-                → Import Settings first.
-              </p>
-            ) : null}
-            <Button type="submit" className="w-full" disabled={!isMappingConfigured || previewUpload.isPending}>
-              Preview import
-            </Button>
-          </form>
-
-          {importPreview ? (
-            <div className="mt-4 space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">Total: {importPreview.total_rows}</Badge>
-                <Badge variant="secondary">Valid: {importPreview.valid_rows}</Badge>
-                <Badge variant="secondary">Invalid: {importPreview.invalid_rows}</Badge>
-              </div>
-
-              <div className="overflow-x-auto rounded-lg border border-border bg-background">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted hover:bg-muted">
-                      <TableHead className="px-2 py-1">Row</TableHead>
-                      <TableHead className="px-2 py-1">Date</TableHead>
-                      <TableHead className="px-2 py-1">Description</TableHead>
-                      <TableHead className="px-2 py-1">Amount</TableHead>
-                      <TableHead className="px-2 py-1">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {importPreview.preview.map((row) => (
-                      <TableRow key={`${row.row}-${row.description}`} className="border-t border-border">
-                        <TableCell className="px-2 py-1">{row.row}</TableCell>
-                        <TableCell className="px-2 py-1">{row.date}</TableCell>
-                        <TableCell className="px-2 py-1">{row.description}</TableCell>
-                        <TableCell className="px-2 py-1">{formatMoney(row.amount)}</TableCell>
-                        <TableCell className="px-2 py-1">{row.status === "ok" ? "OK" : row.message}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {importPreview.errors.length > 0 ? (
-                <div className="rounded-lg border border-border bg-muted p-3 text-xs text-foreground">
-                  <p className="font-semibold">Validation errors</p>
-                  {importPreview.errors.slice(0, 5).map((error) => (
-                    <p key={`${error.row}-${error.message}`}>Row {error.row}: {error.message}</p>
-                  ))}
-                </div>
-              ) : null}
-
-              <form onSubmit={(e) => { e.preventDefault(); upload.mutate(); }}>
-                <Button type="submit" className="w-full" disabled={importPreview.valid_rows === 0}>
-                  Confirm import
-                </Button>
-              </form>
-            </div>
-          ) : null}
-
-          {importResult ? <p className="mt-3 text-sm text-muted-foreground">{importResult}</p> : null}
-          <p className="mt-3 text-xs text-muted-foreground">Required columns: date, description, amount, currency. Optional: tag_id.</p>
-        </DialogContent>
-      </Dialog>
-
-      {/* Split transaction dialog */}
-      <Dialog
-        open={isSplitModalOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setIsSplitModalOpen(false);
-            setSplitParent(null);
-            setSplitRows([]);
-            setSplitResult("");
-          }
-        }}
-      >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Split transaction</DialogTitle>
-          </DialogHeader>
-          {splitParent ? (
-            <div className="space-y-3">
-              <Card className="p-5">
-                <p className="text-sm font-semibold">Original transaction</p>
-                <p className="text-sm text-muted-foreground">{splitParent.date} - {splitParent.description}</p>
-                <p className="text-sm text-muted-foreground">
-                  Amount: {formatMoney(splitParent.amount)} {splitParent.currency}
-                </p>
-              </Card>
-
-              <div className="overflow-x-auto rounded-lg border border-border bg-background">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted hover:bg-muted">
-                      <TableHead className="px-3 py-2">Description</TableHead>
-                      <TableHead className="px-3 py-2">Amount</TableHead>
-                      <TableHead className="px-3 py-2">Tag (optional)</TableHead>
-                      <TableHead className="px-3 py-2">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {splitRows.map((row, index) => (
-                      <TableRow key={`${row.id ?? "new"}-${index}`} className="border-t border-border">
-                        <TableCell className="px-3 py-2">
-                          <Input
-                            value={row.description}
-                            onChange={(e) => updateSplitRow(index, "description", e.target.value)}
-                            placeholder="Description"
-                          />
-                        </TableCell>
-                        <TableCell className="px-3 py-2">
-                          <Input
-                            value={row.amount}
-                            onChange={(e) => updateSplitRow(index, "amount", e.target.value)}
-                            placeholder="0.00"
-                          />
-                        </TableCell>
-                        <TableCell className="px-3 py-2">
-                          <Select value={row.tag_id} onChange={(event) => updateSplitRow(index, "tag_id", event.target.value)}>
-                            <option value="">No tag</option>
-                            {tags.map((tag) => (
-                              <option key={tag.id} value={tag.id}>
-                                {tag.label}
-                              </option>
-                            ))}
-                          </Select>
-                        </TableCell>
-                        <TableCell className="px-3 py-2">
-                          <Button variant="destructive" onClick={() => removeSplitRow(index)}>Remove</Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Button variant="outline" onClick={addSplitRow}>Add row</Button>
-                <p className="text-sm text-muted-foreground">Missing Spllited Transactions: {formatMoney(splitRemaining)}</p>
-              </div>
-
-              <Button className="w-full" onClick={() => saveSplits.mutate()}>
-                Save splitted transactions
-              </Button>
-              {splitResult ? <p className="text-sm text-muted-foreground">{splitResult}</p> : null}
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={remove.isPending}
+              onClick={() => toDelete && toDelete.id > 0 && remove.mutate(toDelete.id)}
+            >
+              {remove.isPending ? "Deleting..." : "Delete transaction"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
-  );
-}
-
-function invalidateTransactionQueries(qc: ReturnType<typeof useQueryClient>) {
-  qc.invalidateQueries({ queryKey: ["transactions"] });
-  qc.invalidateQueries({ queryKey: ["transactions-analytics"] });
-  qc.invalidateQueries({ queryKey: ["transactions-summary"] });
-  qc.invalidateQueries({ queryKey: ["dashboard"] });
+  )
 }
