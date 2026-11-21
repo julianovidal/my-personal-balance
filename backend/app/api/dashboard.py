@@ -10,6 +10,8 @@ from app.core.database import get_db
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.schemas.dashboard import BalanceHistory, DashboardInsights
+from app.services import dashboard_insights as insights_service
 from app.schemas.transaction import (
     DashboardCharts,
     DashboardIncomeExpensePoint,
@@ -184,3 +186,49 @@ def charts(current_user: User = Depends(get_current_user), db: Session = Depends
         patrimony_by_year=patrimony_by_year,
         income_vs_expenses_last_12_months=monthly_points,
     )
+
+
+UNTAGGED = "Untagged"
+
+
+def _tx(row: insights_service.Row) -> dict:
+    return {
+        "id": row.id,
+        "date": row.date,
+        "description": row.description,
+        "account_id": row.account_id,
+        "tag_id": row.tag_id,
+        "amount": row.amount,
+        "currency": row.currency,
+        "is_transfer": row.is_transfer,
+        "transfer_direction": row.transfer_direction,
+        "linked_account_id": row.linked_account_id,
+        "parent_transaction_id": row.parent_transaction_id,
+        "is_remainder": row.is_remainder,
+    }
+
+
+@router.get("/insights", response_model=DashboardInsights)
+def insights(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    rows, accounts = insights_service.load_rows(db, current_user.id)
+    labels = insights_service.tag_labels(db, current_user.id)
+    data = insights_service.build_insights(rows, accounts)
+
+    def label(tag_id: int | None) -> str:
+        return UNTAGGED if tag_id is None else labels.get(tag_id, UNTAGGED)
+
+    for c in data["currencies"]:
+        c["tags"] = [{**t, "label": label(t["tag_id"])} for t in c["tags"]]
+        c["signals"] = [{**s, "label": label(s["tag_id"])} for s in c["signals"]]
+        c["large_expenses"] = [{**{k: v for k, v in e.items() if k != "row"}, "transaction": _tx(e["row"])} for e in c["large_expenses"]]
+        c["top_expenses"] = [_tx(r) for r in c["top_expenses"]]
+
+    data["recent"] = [_tx(r) for r in insights_service.recent_rows(rows)]
+    return data
+
+
+@router.get("/balance-history", response_model=BalanceHistory)
+def balance_history(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    rows, accounts = insights_service.load_rows(db, current_user.id)
+    anchor = insights_service.anchor_date(insights_service.effective_rows(rows))
+    return {"anchor_date": anchor, "series": insights_service.balance_history(rows, accounts, anchor)}
