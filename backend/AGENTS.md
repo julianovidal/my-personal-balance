@@ -92,7 +92,23 @@ uv run python -m app.scripts.seed
 uv run alembic upgrade head
 ```
 
-`pytest` is not a dependency yet and there is no test suite. Once it is added, run tests with `uv run pytest`.
+### Tests
+
+```bash
+cd backend
+uv run pytest
+```
+
+`pytest` and `httpx` are in the `dev` dependency group. Tests in `tests/` that exercise pure functions need no database. API tests use a real Postgres database, `balance_test`, on the compose `db` service (`localhost:5432`), created on first run and kept separate from `balance`. Set `TEST_DATABASE_URL` to use another one. Do not switch to SQLite: the queries rely on Postgres behavior.
+
+## Known issues
+
+Found while rebuilding the frontend. Not fixed yet.
+
+- `PUT /transactions/:id` always sets `parent_transaction_id = None` on non-transfer updates, so editing or tagging a split part detaches it from its parent. The Classifier page tags through this route.
+- `GET /accounts/balances` returns `balance` and `overall_balance` as floats, not decimal strings, and `overall_balance` adds accounts of different currencies together. The frontend shows per-currency totals instead.
+- `GET /transactions/summary/monthly` and `/transactions/analytics/*` add amounts across currencies.
+- `GET /transactions` adds a remainder row for partly split transactions with a negative `id` and the description `Missing Spllited Transactions` (typo). The frontend relabels it.
 
 ## Development Guidelines
 
@@ -105,6 +121,8 @@ uv run alembic upgrade head
 ### File Organization
 
 - `app/` — application source
+  - `app/services/dashboard_insights.py` — dashboard rules (anchor, baseline, signals, balance history)
+- `tests/` — pytest suite
 - `alembic/` — database migrations
 - `pyproject.toml` — project metadata and dependencies
 - `uv.lock` — locked dependency graph (commit this)

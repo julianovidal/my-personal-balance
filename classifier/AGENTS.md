@@ -53,6 +53,11 @@ uv run uvicorn app.main:app --reload --port 8001
 
 `pytest` is not a dependency yet and there is no test suite. Once it is added, run tests with `uv run pytest`.
 
+## Known issues
+
+- `GET /api/classifier/transactions/untagged` returns every untagged non-transfer row, including split parts and split parents. It does not return `parent_transaction_id`, so the frontend cannot warn before tagging a split part, which detaches it on the backend (see `backend/AGENTS.md`).
+- There is no route to read the current model's metadata. The frontend shows it only after a train or predict call.
+
 ## Development Guidelines
 
 ### Code Standards
