@@ -584,6 +584,26 @@ def update_transaction(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
+    if tx.parent_transaction_id is not None:
+        # A split part keeps its parent. Only the description and tag can change
+        # here; date, account, amount and currency follow the split dialog.
+        if (
+            payload.is_transfer
+            or payload.date != tx.date
+            or payload.account_id != tx.account_id
+            or payload.amount != tx.amount
+            or currency != tx.currency
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Split parts can only change description and tag; edit amounts in the split dialog",
+            )
+        tx.description = payload.description
+        tx.tag_id = payload.tag_id
+        db.commit()
+        db.refresh(tx)
+        return tx
+
     if payload.is_transfer:
         destination = _validate_destination_account(payload.destination_account_id, current_user.id, db)
         if destination.id == payload.account_id:
