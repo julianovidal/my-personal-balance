@@ -23,7 +23,8 @@ app/
 ├── core/         config, database session, security (JWT, bcrypt), currency, default_tags
 ├── models/       SQLAlchemy tables (column definitions live here)
 ├── schemas/      Pydantic request and response models
-├── services/     dashboard_insights.py (dashboard rules), import_service.py (CSV/XLSX parsing)
+├── services/     dashboard_insights.py (dashboard rules), import_service.py (CSV/XLSX parsing),
+│                 currency_totals.py (per-currency grouping for balances and totals)
 └── scripts/      seed.py
 alembic/versions/ migrations (add a new revision, never edit an applied one)
 tests/            pytest suite, fixtures in conftest.py
@@ -35,7 +36,7 @@ New logic goes in `app/services/` as plain functions that take a `Session` or da
 
 - Every query filters by the caller's `user_id`. Look up owned rows and return 404 when missing, not 403.
 - Money is `Decimal` end to end. Never cast to `float` in new code.
-- Totals must not mix currencies. Group by currency.
+- Totals must not mix currencies. Group by currency: account balances by the account's currency, transaction totals by the transaction's own `currency` (`specs/per-currency-balances-and-transaction-totals.md`).
 - Queries over all accounts must skip one side of each transfer pair, and must count either the split parent or its parts, never both.
 
 ## Import
@@ -50,6 +51,4 @@ Pure function tests need no database. API tests use a real Postgres database, `b
 
 Not fixed yet. Do not "fix" them as a side effect of other work; each needs its own spec.
 
-- `GET /accounts/balances` returns `balance` and `overall_balance` as floats, not decimal strings, and `overall_balance` adds accounts of different currencies together. The frontend shows per-currency totals instead.
-- `GET /transactions/summary/monthly` and `/transactions/analytics/*` add amounts across currencies.
 - `GET /transactions` adds a remainder row for partly split transactions with a negative `id` and the description `Missing Spllited Transactions` (typo). The frontend relabels it.
