@@ -18,10 +18,11 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { getApiErrorMessage } from "@/lib/auth-errors"
 import { formatMoney } from "@/lib/money"
-import type { Account, MonthlySummaryResponse, PaginatedTransactionsResponse, Transaction } from "@/types"
+import type { MonthlySummaryResponse, PaginatedTransactionsResponse, Transaction } from "@/types"
 
 import { formatDate } from "./transactions/dates"
 import { ExpenseCharts } from "./transactions/ExpenseCharts"
@@ -32,16 +33,6 @@ import { SummaryCards } from "./transactions/SummaryCards"
 import { TransactionFilters } from "./transactions/TransactionFilters"
 import { TransactionFormDialog } from "./transactions/TransactionFormDialog"
 import { TransactionsTable } from "./transactions/TransactionsTable"
-
-/**
- * Totals from the backend add every account together. They only get a currency
- * symbol when everything in scope shares one currency.
- */
-function scopeCurrency(accounts: Account[], accountId: string) {
-  if (accountId !== ALL) return accounts.find((a) => String(a.id) === accountId)?.currency ?? null
-  const currencies = new Set(accounts.map((a) => a.currency))
-  return currencies.size === 1 ? [...currencies][0] : null
-}
 
 export function TransactionsPage() {
   const qc = useQueryClient()
@@ -110,7 +101,13 @@ export function TransactionsPage() {
     },
   })
 
-  const currency = scopeCurrency(accounts, filters.accountId)
+  // Totals come back per currency and are never added together. With more than
+  // one, tabs pick which currency the cards and charts show.
+  const [chosenCurrency, setChosenCurrency] = useState<string | null>(null)
+  const totals = summary.data?.totals ?? []
+  const current = totals.find((t) => t.currency === chosenCurrency) ?? totals[0]
+  const selectedAccount = accounts.find((a) => String(a.id) === filters.accountId)
+  const currency = current?.currency ?? (filters.accountId !== ALL ? (selectedAccount?.currency ?? null) : null)
   const periodLabel = `${formatDate(filters.from)} – ${formatDate(filters.to)}`
 
   return (
@@ -135,18 +132,21 @@ export function TransactionsPage() {
         </CardContent>
       </Card>
 
-      <SummaryCards
-        summary={summary.data}
-        loading={summary.isPending}
-        currency={currency}
-        periodLabel={periodLabel}
-      />
-      {currency === null && (
-        <p className="-mt-2 text-xs text-muted-foreground">
-          Your accounts use different currencies, so totals and charts add them without converting.
-          Pick one account to see a single currency.
-        </p>
+      {totals.length > 1 && (
+        <div className="flex justify-end">
+          <Tabs value={current?.currency} onValueChange={(v) => setChosenCurrency(v as string)}>
+            <TabsList aria-label="Currency">
+              {totals.map((t) => (
+                <TabsTrigger key={t.currency} value={t.currency}>
+                  {t.currency}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
       )}
+
+      <SummaryCards totals={current} loading={summary.isPending} currency={currency} periodLabel={periodLabel} />
 
       <ExpenseCharts filters={filters} tags={tags} currency={currency} />
 

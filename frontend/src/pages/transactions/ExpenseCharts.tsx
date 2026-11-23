@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { formatAmount, toCents } from "@/lib/money"
+import { formatMoney, toCents } from "@/lib/money"
 import type { MonthlyAnalyticsResponse, Tag, TagMonthlyTrendResponse } from "@/types"
 
 import { formatMonth } from "./dates"
@@ -63,7 +63,7 @@ function ExpenseBreakdown({ filters, currency }: { filters: Filters; currency: s
         )
       ).data,
   })
-  const rows = topWithOther(analytics.data?.[by] ?? [])
+  const rows = topWithOther((analytics.data?.[by] ?? []).filter((r) => r.currency === currency))
 
   return (
     <Card>
@@ -82,7 +82,7 @@ function ExpenseBreakdown({ filters, currency }: { filters: Filters; currency: s
       <CardContent>
         {analytics.isPending ? (
           <Skeleton className="h-64 w-full" />
-        ) : rows.length === 0 ? (
+        ) : rows.length === 0 || !currency ? (
           <EmptyChart text="No expenses for the selected filters." />
         ) : (
           <ChartContainer
@@ -106,7 +106,7 @@ function ExpenseBreakdown({ filters, currency }: { filters: Filters; currency: s
                 content={
                   <ChartTooltipContent
                     formatter={(value) => (
-                      <span className="font-mono tabular-nums">{formatAmount(Number(value), currency)}</span>
+                      <span className="font-mono tabular-nums">{formatMoney(Number(value), currency)}</span>
                     )}
                   />
                 }
@@ -139,7 +139,11 @@ function TagTrend({
       return (await api.get<TagMonthlyTrendResponse>(`/transactions/analytics/tag-trend?${params}`)).data
     },
   })
-  const points = (trend.data?.points ?? []).map((p) => ({
+  // The trend covers the last 12 months, not the filtered period, so with no
+  // currency chosen (empty period) it falls back to the first series.
+  const allSeries = trend.data?.series ?? []
+  const series = allSeries.find((s) => s.currency === currency) ?? (currency ? undefined : allSeries[0])
+  const points = (series?.points ?? []).map((p) => ({
     month: formatMonth(p.month),
     total: plot(p.total_expense),
   }))
@@ -164,6 +168,8 @@ function TagTrend({
           <EmptyChart text="Select a tag to see its monthly trend." />
         ) : trend.isPending ? (
           <Skeleton className="h-64 w-full" />
+        ) : !series ? (
+          <EmptyChart text={currency ? `No ${currency} expenses for this tag in the last 12 months.` : "No expenses for this tag in the last 12 months."} />
         ) : (
           <ChartContainer config={expenseConfig} className="aspect-auto h-64 w-full">
             <BarChart data={points} margin={{ left: 0, right: 0 }}>
@@ -174,7 +180,7 @@ function TagTrend({
                 content={
                   <ChartTooltipContent
                     formatter={(value) => (
-                      <span className="font-mono tabular-nums">{formatAmount(Number(value), currency)}</span>
+                      <span className="font-mono tabular-nums">{formatMoney(Number(value), series.currency)}</span>
                     )}
                   />
                 }

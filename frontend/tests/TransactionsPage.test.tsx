@@ -61,13 +61,16 @@ let mapping: Record<string, string | null> = {
   tag_id_column: null,
 }
 
+const EUR_TOTALS = { currency: "EUR", income: "1000.00", expenses: "250.50", net: "749.50" }
+let summary: { totals: unknown[]; by_account: unknown[] } = { totals: [EUR_TOTALS], by_account: [] }
+
 function routeGet(url: string) {
   if (url === "/accounts") return ACCOUNTS
   if (url === "/tags") return TAGS
   if (url.startsWith("/transactions?"))
     return { items: ITEMS, total: 45, page: Number(new URLSearchParams(url.split("?")[1]).get("page")), page_size: 20, total_pages: 3 }
   if (url.startsWith("/transactions/summary/monthly"))
-    return { overall: { income: "1000.00", expenses: "250.50", net: "749.50" }, by_account: [] }
+    return summary
   if (url.match(/^\/accounts\/\d+\/import-mapping$/)) return mapping
   if (url === "/transactions/9/splits")
     return {
@@ -105,6 +108,7 @@ describe("TransactionsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mapping = { ...mapping, date_column: "Date" }
+    summary = { totals: [EUR_TOTALS], by_account: [] }
     api.get.mockImplementation(async (url: string) => ({ data: routeGet(url) }))
     api.post.mockResolvedValue({ data: {} })
     api.put.mockResolvedValue({ data: {} })
@@ -132,11 +136,35 @@ describe("TransactionsPage", () => {
       expect(screen.queryByText("Missing Spllited Transactions")).not.toBeInTheDocument()
     })
 
-    it("shows summary totals in the shared currency", async () => {
+    it("shows summary totals in their currency, with no tabs for a single currency", async () => {
       renderPage()
       expect(await screen.findByText("€1,000.00")).toBeInTheDocument()
       expect(screen.getByText("€250.50")).toBeInTheDocument()
       expect(screen.getByText("€749.50")).toBeInTheDocument()
+      expect(screen.queryByRole("tablist", { name: "Currency" })).not.toBeInTheDocument()
+    })
+
+    it("never adds currencies: tabs switch the summary between them", async () => {
+      summary = {
+        totals: [{ currency: "BRL", income: "500.00", expenses: "120.00", net: "380.00" }, EUR_TOTALS],
+        by_account: [],
+      }
+      renderPage()
+      const tabs = await screen.findByRole("tablist", { name: "Currency" })
+      // Alphabetical: BRL is shown first.
+      expect(await screen.findByText("R$500.00")).toBeInTheDocument()
+      expect(screen.queryByText("€1,000.00")).not.toBeInTheDocument()
+      expect(screen.queryByText(/1,500/)).not.toBeInTheDocument()
+
+      await userEvent.click(within(tabs).getByRole("tab", { name: "EUR" }))
+      expect(await screen.findByText("€1,000.00")).toBeInTheDocument()
+      expect(screen.queryByText("R$500.00")).not.toBeInTheDocument()
+    })
+
+    it("shows zeros in the account's currency when the period has no rows", async () => {
+      summary = { totals: [], by_account: [] }
+      renderPage("/transactions?account_id=1")
+      expect(await screen.findAllByText("€0.00")).toHaveLength(3)
     })
 
     it("adds the account filter and returns to page 1", async () => {

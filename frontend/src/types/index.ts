@@ -24,11 +24,16 @@ export type AccountBalanceItem = {
   account_id: number;
   account_name: string;
   currency: string;
-  balance: number;
+  balance: string;
+};
+
+export type CurrencyBalance = {
+  currency: string;
+  balance: string;
 };
 
 export type AccountsBalanceResponse = {
-  overall_balance: number;
+  totals: CurrencyBalance[];
   by_account: AccountBalanceItem[];
 };
 
@@ -87,13 +92,18 @@ export type PaginatedTransactionsResponse = {
 };
 
 export type MonthlyAnalyticsItem = {
+  currency: string;
   label: string;
   total_expense: string;
 };
 
+export type MonthlyAnalyticsAccountItem = MonthlyAnalyticsItem & {
+  account_id: number;
+};
+
 export type MonthlyAnalyticsResponse = {
   by_tag: MonthlyAnalyticsItem[];
-  by_account: MonthlyAnalyticsItem[];
+  by_account: MonthlyAnalyticsAccountItem[];
 };
 
 export type TagMonthlyTrendItem = {
@@ -101,12 +111,18 @@ export type TagMonthlyTrendItem = {
   total_expense: string;
 };
 
-export type TagMonthlyTrendResponse = {
-  tag_id: number;
+export type TagMonthlyTrendSeries = {
+  currency: string;
   points: TagMonthlyTrendItem[];
 };
 
+export type TagMonthlyTrendResponse = {
+  tag_id: number;
+  series: TagMonthlyTrendSeries[];
+};
+
 export type MonthlySummaryCard = {
+  currency: string;
   income: string;
   expenses: string;
   net: string;
@@ -115,13 +131,14 @@ export type MonthlySummaryCard = {
 export type MonthlyAccountSummary = {
   account_id: number;
   account_name: string;
+  currency: string;
   income: string;
   expenses: string;
   net: string;
 };
 
 export type MonthlySummaryResponse = {
-  overall: MonthlySummaryCard;
+  totals: MonthlySummaryCard[];
   by_account: MonthlyAccountSummary[];
 };
 
