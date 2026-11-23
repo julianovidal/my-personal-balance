@@ -78,13 +78,18 @@ class PaginatedTransactionsResponse(BaseModel):
 
 
 class MonthlyAnalyticsItem(BaseModel):
+    currency: str
     label: str
     total_expense: Decimal
 
 
+class MonthlyAnalyticsAccountItem(MonthlyAnalyticsItem):
+    account_id: int
+
+
 class MonthlyAnalyticsResponse(BaseModel):
     by_tag: list[MonthlyAnalyticsItem]
-    by_account: list[MonthlyAnalyticsItem]
+    by_account: list[MonthlyAnalyticsAccountItem]
 
 
 class TagMonthlyTrendItem(BaseModel):
@@ -92,12 +97,18 @@ class TagMonthlyTrendItem(BaseModel):
     total_expense: Decimal
 
 
-class TagMonthlyTrendResponse(BaseModel):
-    tag_id: int
+class TagMonthlyTrendSeries(BaseModel):
+    currency: str
     points: list[TagMonthlyTrendItem]
 
 
+class TagMonthlyTrendResponse(BaseModel):
+    tag_id: int
+    series: list[TagMonthlyTrendSeries]
+
+
 class MonthlySummaryCard(BaseModel):
+    currency: str
     income: Decimal
     expenses: Decimal
     net: Decimal
@@ -106,13 +117,14 @@ class MonthlySummaryCard(BaseModel):
 class MonthlyAccountSummary(BaseModel):
     account_id: int
     account_name: str
+    currency: str
     income: Decimal
     expenses: Decimal
     net: Decimal
 
 
 class MonthlySummaryResponse(BaseModel):
-    overall: MonthlySummaryCard
+    totals: list[MonthlySummaryCard]
     by_account: list[MonthlyAccountSummary]
 
 

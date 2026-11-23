@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from pydantic import BaseModel
 
 
@@ -45,9 +47,14 @@ class AccountBalanceItem(BaseModel):
     account_id: int
     account_name: str
     currency: str
-    balance: float
+    balance: Decimal
+
+
+class CurrencyBalance(BaseModel):
+    currency: str
+    balance: Decimal
 
 
 class AccountsBalanceResponse(BaseModel):
-    overall_balance: float
+    totals: list[CurrencyBalance]
     by_account: list[AccountBalanceItem]

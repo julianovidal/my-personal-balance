@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
@@ -22,6 +20,7 @@ from app.schemas.account import (
     AccountResponse,
     AccountUpdate,
 )
+from app.services.currency_totals import balance_totals, money
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -103,13 +102,13 @@ def get_accounts_balances(current_user: User = Depends(get_current_user), db: Se
             account_id=account_id,
             account_name=account_name,
             currency=currency,
-            balance=float(balance or 0),
+            balance=money(balance),
         )
         for account_id, account_name, currency, balance in rows
     ]
-    overall = sum((Decimal(str(item.balance)) for item in by_account), Decimal("0"))
+    totals = balance_totals((item.currency, item.balance) for item in by_account)
 
-    return AccountsBalanceResponse(overall_balance=float(overall), by_account=by_account)
+    return AccountsBalanceResponse(totals=totals, by_account=by_account)
 
 
 @router.get("/{account_id}/import-mapping", response_model=AccountImportMappingResponse)

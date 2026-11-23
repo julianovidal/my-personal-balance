@@ -18,9 +18,9 @@ from app.schemas.transaction import (
     ImportPreviewItem,
     ImportPreviewResponse,
     MonthlyAccountSummary,
+    MonthlyAnalyticsAccountItem,
     MonthlyAnalyticsItem,
     MonthlyAnalyticsResponse,
-    TagMonthlyTrendItem,
     TagMonthlyTrendResponse,
     MonthlySummaryCard,
     MonthlySummaryResponse,
@@ -32,6 +32,7 @@ from app.schemas.transaction import (
     TransactionResponse,
     TransactionUpdate,
 )
+from app.services.currency_totals import last_12_months, money, trend_series
 from app.services.import_service import parse_transactions_with_errors
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
@@ -364,17 +365,20 @@ def monthly_summary(
     expense_expr = func.coalesce(func.sum(case((Transaction.amount < 0, -Transaction.amount), else_=0)), 0)
     net_expr = func.coalesce(func.sum(Transaction.amount), 0)
 
-    overall = db.execute(
-        select(income_expr.label("income"), expense_expr.label("expenses"), net_expr.label("net"))
+    totals_rows = db.execute(
+        select(Transaction.currency, income_expr.label("income"), expense_expr.label("expenses"), net_expr.label("net"))
         .select_from(Transaction)
         .join(Account, Transaction.account_id == Account.id)
         .where(*filters, _effective_transaction_condition())
-    ).one()
+        .group_by(Transaction.currency)
+        .order_by(Transaction.currency.asc())
+    ).all()
 
     by_account_rows = db.execute(
         select(
             Account.id,
             Account.name,
+            Transaction.currency,
             income_expr.label("income"),
             expense_expr.label("expenses"),
             net_expr.label("net"),
@@ -382,21 +386,25 @@ def monthly_summary(
         .select_from(Transaction)
         .join(Account, Transaction.account_id == Account.id)
         .where(*filters, _effective_transaction_condition())
-        .group_by(Account.id, Account.name)
-        .order_by(Account.name.asc())
+        .group_by(Account.id, Account.name, Transaction.currency)
+        .order_by(Account.name.asc(), Account.id.asc(), Transaction.currency.asc())
     ).all()
 
     return MonthlySummaryResponse(
-        overall=MonthlySummaryCard(income=overall.income, expenses=overall.expenses, net=overall.net),
+        totals=[
+            MonthlySummaryCard(currency=currency, income=money(income), expenses=money(expenses), net=money(net))
+            for currency, income, expenses, net in totals_rows
+        ],
         by_account=[
             MonthlyAccountSummary(
                 account_id=account_id,
                 account_name=account_name,
-                income=income,
-                expenses=expenses,
-                net=net,
+                currency=currency,
+                income=money(income),
+                expenses=money(expenses),
+                net=money(net),
             )
-            for account_id, account_name, income, expenses, net in by_account_rows
+            for account_id, account_name, currency, income, expenses, net in by_account_rows
         ],
     )
 
@@ -426,34 +434,37 @@ def monthly_analytics(
     # Expenses are negative amounts; convert to positive magnitude for chart readability.
     expense_expr = func.sum(case((Transaction.amount < 0, -Transaction.amount), else_=0))
 
+    tag_label = func.coalesce(Tag.label, "Uncategorized")
     by_tag_rows = db.execute(
-        select(func.coalesce(Tag.label, "Uncategorized"), expense_expr)
+        select(Transaction.currency, tag_label, expense_expr)
         .select_from(Transaction)
         .join(Account, Transaction.account_id == Account.id)
         .outerjoin(Tag, Transaction.tag_id == Tag.id)
         .where(*base_filters, _effective_transaction_condition())
-        .group_by(func.coalesce(Tag.label, "Uncategorized"))
-        .order_by(expense_expr.desc())
+        .group_by(Transaction.currency, tag_label)
+        .order_by(Transaction.currency.asc(), expense_expr.desc(), tag_label.asc())
     ).all()
 
     by_account_rows = db.execute(
-        select(Account.name, expense_expr)
+        select(Transaction.currency, Account.id, Account.name, expense_expr)
         .select_from(Transaction)
         .join(Account, Transaction.account_id == Account.id)
         .where(*base_filters, _effective_transaction_condition())
-        .group_by(Account.name)
-        .order_by(expense_expr.desc())
+        .group_by(Transaction.currency, Account.id, Account.name)
+        .order_by(Transaction.currency.asc(), expense_expr.desc(), Account.name.asc())
     ).all()
 
     return MonthlyAnalyticsResponse(
         by_tag=[
-            MonthlyAnalyticsItem(label=str(label), total_expense=total_expense or 0)
-            for label, total_expense in by_tag_rows
+            MonthlyAnalyticsItem(currency=currency, label=str(label), total_expense=money(total_expense))
+            for currency, label, total_expense in by_tag_rows
             if (total_expense or 0) > 0
         ],
         by_account=[
-            MonthlyAnalyticsItem(label=str(label), total_expense=total_expense or 0)
-            for label, total_expense in by_account_rows
+            MonthlyAnalyticsAccountItem(
+                currency=currency, account_id=account_id, label=str(label), total_expense=money(total_expense)
+            )
+            for currency, account_id, label, total_expense in by_account_rows
             if (total_expense or 0) > 0
         ],
     )
@@ -470,14 +481,8 @@ def tag_trend_last_12_months(
     if not tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
 
-    today = date.today()
-    month_start = date(today.year, today.month, 1)
-    start_year = month_start.year
-    start_month = month_start.month - 11
-    while start_month <= 0:
-        start_month += 12
-        start_year -= 1
-    range_start = date(start_year, start_month, 1)
+    months = last_12_months(date.today())
+    range_start = date(months[0][0], months[0][1], 1)
 
     filters = [
         Account.user_id == current_user.id,
@@ -491,6 +496,7 @@ def tag_trend_last_12_months(
     expense_expr = func.sum(case((Transaction.amount < 0, -Transaction.amount), else_=0))
     rows = db.execute(
         select(
+            Transaction.currency,
             extract("year", Transaction.date).label("year"),
             extract("month", Transaction.date).label("month"),
             expense_expr.label("total"),
@@ -498,27 +504,10 @@ def tag_trend_last_12_months(
         .select_from(Transaction)
         .join(Account, Transaction.account_id == Account.id)
         .where(*filters, _effective_transaction_condition())
-        .group_by(extract("year", Transaction.date), extract("month", Transaction.date))
-        .order_by(extract("year", Transaction.date), extract("month", Transaction.date))
+        .group_by(Transaction.currency, extract("year", Transaction.date), extract("month", Transaction.date))
     ).all()
 
-    row_map: dict[tuple[int, int], Decimal] = {
-        (int(year), int(month)): total or Decimal("0")
-        for year, month, total in rows
-    }
-
-    points: list[TagMonthlyTrendItem] = []
-    for offset in range(12):
-        y = start_year + ((start_month - 1 + offset) // 12)
-        m = ((start_month - 1 + offset) % 12) + 1
-        points.append(
-            TagMonthlyTrendItem(
-                month=f"{y}-{m:02d}",
-                total_expense=row_map.get((y, m), Decimal("0")),
-            )
-        )
-
-    return TagMonthlyTrendResponse(tag_id=tag_id, points=points)
+    return TagMonthlyTrendResponse(tag_id=tag_id, series=trend_series(rows, months))
 
 
 @router.post("", response_model=TransactionResponse)
