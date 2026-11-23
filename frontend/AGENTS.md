@@ -61,8 +61,8 @@ tests/            Vitest tests, render helper, axios stub adapter
 
 ## Money and dates
 
-- The API sends amounts as decimal strings, except account balances, which are JSON numbers (floats). Before adding anything, convert with `toCents` from `src/lib/money.ts` and add integer cents. Send amounts back as strings with `centsToDecimal`.
-- Format with `formatMoney` or `formatCents` using the row's own currency. Never add totals across currencies. Backend totals that already mix currencies are shown without a symbol unless every account in scope shares one (`formatAmount`).
+- The API sends amounts as decimal strings. Before adding anything, convert with `toCents` from `src/lib/money.ts` and add integer cents. Send amounts back as strings with `centsToDecimal`.
+- Format with `formatMoney` or `formatCents` using the row's own currency. Never add totals across currencies. Balances, summary, analytics, and tag trend come back grouped by currency; with more than one, the page shows currency tabs (Dashboard and Transactions).
 - Dates are `YYYY-MM-DD` strings in local time (`src/pages/transactions/dates.ts`). Do not use `toISOString()` for "today", because it is UTC.
 
 ## Auth

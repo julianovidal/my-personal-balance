@@ -22,7 +22,7 @@ Paths the UI never calls: `GET /health`, `GET /health` on the classifier, `GET /
 | `POST` | `/accounts` | `save` | Body `{ name, currency }` |
 | `PUT` | `/accounts/:id` | `save` | Same body when editing |
 | `DELETE` | `/accounts/:id` | `remove` | |
-| `GET` | `/accounts/balances` | `["accounts-balances"]` | Accounts page only |
+| `GET` | `/accounts/balances` | `["accounts-balances"]` | Accounts page only. `totals` and `by_account`, per account currency |
 | `GET` | `/accounts/:id/import-mapping` | `["account-import-mapping", selectedAccountId]` | Enabled once an account is selected |
 | `PUT` | `/accounts/:id/import-mapping` | `MappingForm` save | Column names: date, description, amount, currency, tag id |
 
@@ -61,9 +61,9 @@ List and charts all send `date_from` and `date_to`. Account and tag filters are 
 | Method | Path | Query key or mutation | Params or body |
 | --- | --- | --- | --- |
 | `GET` | `/transactions` | `["transactions", dateFrom, dateTo, accountFilter, tagFilter, textFilter, page, pageSize]` | `page`, `page_size`, optional `account_id`, `tag_id`, `search_text` |
-| `GET` | `/transactions/summary/monthly` | `["transactions-summary", dateFrom, dateTo, accountFilter, tagFilter]` | Optional `account_id`, `tag_id` |
-| `GET` | `/transactions/analytics/monthly` | `["transactions-analytics", dateFrom, dateTo, accountFilter, tagFilter]` | Optional `account_id`, `tag_id`. Expense totals by tag and by account |
-| `GET` | `/transactions/analytics/tag-trend` | `["transactions-tag-trend", trendTagId, accountFilter]` | Enabled when a trend tag is selected. Required `tag_id`, optional `account_id`. Server always uses the last 12 months |
+| `GET` | `/transactions/summary/monthly` | `["transactions-summary", dateFrom, dateTo, accountFilter, tagFilter]` | Optional `account_id`, `tag_id`. `totals` per transaction currency |
+| `GET` | `/transactions/analytics/monthly` | `["transactions-analytics", dateFrom, dateTo, accountFilter, tagFilter]` | Optional `account_id`, `tag_id`. Expense totals by tag and by account, per transaction currency |
+| `GET` | `/transactions/analytics/tag-trend` | `["transactions-tag-trend", trendTagId, accountFilter]` | Enabled when a trend tag is selected. Required `tag_id`, optional `account_id`. Server always uses the last 12 months. One `series` per currency |
 | `POST` | `/transactions` | `save` in `TransactionFormDialog` | `{ date, description, account_id, tag_id, is_transfer, destination_account_id, amount, currency }` |
 | `PUT` | `/transactions/:id` | `save` in `TransactionFormDialog`, and Classifier `apply` | Same body. Classifier sends `is_transfer: false` and the chosen `tag_id` |
 | `DELETE` | `/transactions/:id` | `remove` | |
