@@ -1,6 +1,6 @@
 # My Personal Balance - Frontend
 
-React SPA for My Personal Balance. Read the root [`AGENTS.md`](../AGENTS.md) first: it has the routes, the API map with every query key, and the commit rules.
+React SPA for My Personal Balance. Read the root [`AGENTS.md`](../AGENTS.md) first: it has the routes and the commit rules. Every API call and query key is in [`docs/api-map.md`](../docs/api-map.md).
 
 ## Stack
 

@@ -1,127 +1,55 @@
 # My Personal Balance - Backend
 
-This project is the backend for My Personal Balance.
+FastAPI, SQLAlchemy 2, Postgres, JWT auth. Read the root [`AGENTS.md`](../AGENTS.md) first: it has the domain tables, conventions, and commit rules. Route-to-page mapping is in [`docs/api-map.md`](../docs/api-map.md).
 
-## Project Specification
+## Commands
 
-- FastAPI
-- SQLAlchemy
-- JWT auth
-- Database: Postgres
-- Package manager: uv
-
-## Database Domain model
-
-The domain tables are listed under [Backend in the root `AGENTS.md`](../AGENTS.md#backend). Column definitions are in `app/models/`.
-
-## Database migrations
-
-The backend container runs migrations at startup via:
-
-- `alembic upgrade head`
-
-To run manually:
+Use uv. `pyproject.toml` and `uv.lock` are committed together.
 
 ```bash
-cd backend
-uv run alembic upgrade head
+uv sync                                  # install
+uv add <package>==<version>              # add a dependency (updates both files)
+uv run alembic upgrade head              # migrate (the container also does this at startup)
+uv run pytest                            # tests
+podman exec -it balance-api python -m app.scripts.seed   # demo data in compose
 ```
 
-## Seed demo data
+## Layout
 
-Run seed in the backend container:
-
-```bash
-podman exec -it balance-api python -m app.scripts.seed
+```text
+app/
+├── main.py       app, CORS, routers under /api
+├── api/          HTTP handlers, one router per resource; deps.py has get_current_user
+├── core/         config, database session, security (JWT, bcrypt), currency, default_tags
+├── models/       SQLAlchemy tables (column definitions live here)
+├── schemas/      Pydantic request and response models
+├── services/     dashboard_insights.py (dashboard rules), import_service.py (CSV/XLSX parsing)
+└── scripts/      seed.py
+alembic/versions/ migrations (add a new revision, never edit an applied one)
+tests/            pytest suite, fixtures in conftest.py
 ```
 
-## CSV/XLSX import format
+New logic goes in `app/services/` as plain functions that take a `Session` or data and can be tested without HTTP. The `_helpers` in `api/transactions.py` are legacy (see the root thin-handlers rule).
 
-Required columns:
+## Rules
 
-- `date`
-- `description`
-- `amount`
+- Every query filters by the caller's `user_id`. Look up owned rows and return 404 when missing, not 403.
+- Money is `Decimal` end to end. Never cast to `float` in new code.
+- Totals must not mix currencies. Group by currency.
+- Queries over all accounts must skip one side of each transfer pair, and must count either the split parent or its parts, never both.
 
-Optional:
+## Import
 
-- `currency` (defaults to selected account currency if missing/blank)
-- `tag_id`
+`services/import_service.py` reads CSV or XLSX. The column names come from the account's `account_import_mappings` row. The fallback names are `date`, `description`, `amount`, and optional `currency` and `tag_id`. A blank currency falls back to the account currency.
 
-## Dependency Management
+## Tests
 
-Dependencies are managed with [uv](https://docs.astral.sh/uv/).
-The `pyproject.toml` is the source of truth; `uv.lock` pins exact versions.
-**Always commit both files together.**
-
-### Install dependencies locally
-
-```bash
-cd backend
-uv sync
-```
-
-### Add a new dependency
-
-```bash
-cd backend
-uv add <package>==<version>
-```
-
-This updates both `pyproject.toml` and `uv.lock`. Commit both.
-
-### Remove a dependency
-
-```bash
-cd backend
-uv remove <package>
-```
-
-### Update a dependency
-
-```bash
-cd backend
-uv lock --upgrade-package <package>
-```
-
-### Run commands in the uv environment
-
-```bash
-cd backend
-uv run python -m app.scripts.seed
-uv run alembic upgrade head
-```
-
-### Tests
-
-```bash
-cd backend
-uv run pytest
-```
-
-`pytest` and `httpx` are in the `dev` dependency group. Tests in `tests/` that exercise pure functions need no database. API tests use a real Postgres database, `balance_test`, on the compose `db` service (`localhost:5432`), created on first run and kept separate from `balance`. Set `TEST_DATABASE_URL` to use another one. Do not switch to SQLite: the queries rely on Postgres behavior.
+Pure function tests need no database. API tests use a real Postgres database, `balance_test`, on the compose `db` service (`localhost:5432`). It is created on first run and kept separate from `balance`. Set `TEST_DATABASE_URL` to use another one. Do not switch to SQLite: the queries rely on Postgres behavior.
 
 ## Known issues
 
-Found while rebuilding the frontend. Not fixed yet.
+Not fixed yet. Do not "fix" them as a side effect of other work; each needs its own spec.
 
 - `GET /accounts/balances` returns `balance` and `overall_balance` as floats, not decimal strings, and `overall_balance` adds accounts of different currencies together. The frontend shows per-currency totals instead.
 - `GET /transactions/summary/monthly` and `/transactions/analytics/*` add amounts across currencies.
 - `GET /transactions` adds a remainder row for partly split transactions with a negative `id` and the description `Missing Spllited Transactions` (typo). The frontend relabels it.
-
-## Development Guidelines
-
-### Code Standards
-
-- Follow PEP 8 and FastAPI conventions
-- Separate business logic from HTTP handlers and DB queries
-- All functions must have a single, clearly defined responsibility
-
-### File Organization
-
-- `app/` — application source
-  - `app/services/dashboard_insights.py` — dashboard rules (anchor, baseline, signals, balance history)
-- `tests/` — pytest suite
-- `alembic/` — database migrations
-- `pyproject.toml` — project metadata and dependencies
-- `uv.lock` — locked dependency graph (commit this)
