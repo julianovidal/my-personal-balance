@@ -10,7 +10,7 @@ Replace the old frontend (Tailwind 3, hand-written shadcn-style primitives, hand
 
 ## Behavior kept
 
-Every route and API call in the root `AGENTS.md` API map: login and register, accounts with balances and import settings, tags, transactions with filters, charts, add/edit, transfers, splits, import preview, and the classifier.
+Every route and API call in the API map (`docs/api-map.md`): login and register, accounts with balances and import settings, tags, transactions with filters, charts, add/edit, transfers, splits, import preview, and the classifier.
 
 ## Behavior changed
 
