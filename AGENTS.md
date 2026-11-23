@@ -54,7 +54,7 @@ Tests: `pnpm test` (Vitest). Every page has a test file under `frontend/tests/`.
 
 ## Backend
 
-Routers are mounted under `/api` in `backend/app/main.py`. The route-to-page map is in [API map](#api-map).
+Routers are mounted under `/api` in `backend/app/main.py`.
 
 Auth is JWT (`python-jose`), password hashing is bcrypt. `get_current_user` scopes every query to the caller. Allowed currencies are `USD`, `EUR`, and `BRL` (`app/core/currency.py`).
 
@@ -76,103 +76,36 @@ The backend has a pytest suite in `backend/tests/` (`cd backend && uv run pytest
 
 ## Classifier
 
-Training uses tagged, non-transfer transactions for one account. It needs at least 20 descriptions and 2 distinct tags. It fits TF-IDF character n-grams with logistic regression, complement naive Bayes, and a calibrated linear SVM, then keeps the best macro-F1 model. The frontend calls are in [API map](#api-map).
+Training uses tagged, non-transfer transactions for one account. It needs at least 20 descriptions and 2 distinct tags. It fits TF-IDF character n-grams with logistic regression, complement naive Bayes, and a calibrated linear SVM, then keeps the best macro-F1 model. The frontend calls are in [`docs/api-map.md`](docs/api-map.md#classifier--classifierpage-via-classifierapi).
 
 Models are joblib files at `{MODEL_DATA_DIR}/model_user_{user_id}_account_{account_id}.joblib`. That directory is gitignored.
 
 ## API map
 
-`api` (`frontend/src/api/client.ts`) already includes the `/api` prefix. `classifierApi` does not, so classifier paths below include `/api`. Every route except `POST /auth/register`, `POST /auth/login`, and the two `/health` checks requires the bearer token.
+Which page calls which route, every TanStack Query key, and what each write invalidates are in [`docs/api-map.md`](docs/api-map.md). Read it before changing frontend data flow or anything that crosses services.
 
-Paths the UI never calls: `GET /health`, `GET /health` on the classifier, `GET /dashboard/summary`, `GET /dashboard/charts`, and the optional `month`, `year`, `sort_by`, and `sort_order` query params on transaction list, summary, and analytics.
-
-### Auth and profile
-
-| Method | Path | Caller | Notes |
-| --- | --- | --- | --- |
-| `POST` | `/auth/register` | `AuthContext.register` | Body `{ name, email, password }`, then logs in |
-| `POST` | `/auth/login` | `AuthContext.login` | Body `{ email, password }`, stores `access_token` |
-| `GET` | `/profile` | `AuthContext` on load and after login | Current user. No profile update route |
-
-### Accounts — `AccountsPage`, also read by Transactions and Classifier
-
-| Method | Path | Query key or mutation | Notes |
-| --- | --- | --- | --- |
-| `GET` | `/accounts` | `["accounts"]` | Also on Transactions and Classifier |
-| `POST` | `/accounts` | `save` | Body `{ name, currency }` |
-| `PUT` | `/accounts/:id` | `save` | Same body when editing |
-| `DELETE` | `/accounts/:id` | `remove` | |
-| `GET` | `/accounts/balances` | `["accounts-balances"]` | Accounts page only |
-| `GET` | `/accounts/:id/import-mapping` | `["account-import-mapping", selectedAccountId]` | Enabled once an account is selected |
-| `PUT` | `/accounts/:id/import-mapping` | `MappingForm` save | Column names: date, description, amount, currency, tag id |
-
-Account create, update, and delete invalidate `["accounts"]` and `["accounts-balances"]`. Saving a mapping invalidates that account's mapping key only.
-
-### Tags — `ProfilePage`, also read by Transactions and Classifier
-
-| Method | Path | Query key or mutation | Notes |
-| --- | --- | --- | --- |
-| `GET` | `/tags` | `["tags"]` | Profile, Transactions, Classifier |
-| `POST` | `/tags` | `create` | Body `{ label }` |
-| `PUT` | `/tags/:id` | `update` | Same body when editing |
-| `DELETE` | `/tags/:id` | `remove` | |
-
-Tag writes invalidate `["tags"]` and `["transactions"]`.
-
-### Dashboard — `DashboardPage`
-
-Anchored on the newest non-transfer transaction ("data through"), not on today. Rules are in `backend/app/services/dashboard_insights.py` and `specs/dashboard-insights-latest-data-month.md`.
-
-| Method | Path | Query key | Notes |
-| --- | --- | --- | --- |
-| `GET` | `/dashboard/insights` | `["dashboard", "insights"]` | Spending vs usual (same days, median of up to 6 months with data), tag spikes, large expenses, top expenses, 12-month trend, account freshness, 10 recent rows. Per currency |
-| `GET` | `/dashboard/balance-history` | `["dashboard", "balance-history"]` | Month-end balance per account currency |
-| `GET` | `/dashboard/summary` | — | Not called by the UI. Anchors on today |
-| `GET` | `/dashboard/charts` | — | Not called by the UI. Anchors on today |
-
-Both dashboard keys start with `"dashboard"`, so `invalidateTransactionQueries` refreshes them.
-
-`TransactionsPage` reads `from`, `to`, `tag_id`, and `account_id` from the URL as its starting filters; the dashboard links use them.
-
-### Transactions — `TransactionsPage`
-
-List and charts all send `date_from` and `date_to`. Account and tag filters are added only when set.
-
-| Method | Path | Query key or mutation | Params or body |
-| --- | --- | --- | --- |
-| `GET` | `/transactions` | `["transactions", dateFrom, dateTo, accountFilter, tagFilter, textFilter, page, pageSize]` | `page`, `page_size`, optional `account_id`, `tag_id`, `search_text` |
-| `GET` | `/transactions/summary/monthly` | `["transactions-summary", dateFrom, dateTo, accountFilter, tagFilter]` | Optional `account_id`, `tag_id` |
-| `GET` | `/transactions/analytics/monthly` | `["transactions-analytics", dateFrom, dateTo, accountFilter, tagFilter]` | Optional `account_id`, `tag_id`. Expense totals by tag and by account |
-| `GET` | `/transactions/analytics/tag-trend` | `["transactions-tag-trend", trendTagId, accountFilter]` | Enabled when a trend tag is selected. Required `tag_id`, optional `account_id`. Server always uses the last 12 months |
-| `POST` | `/transactions` | `save` in `TransactionFormDialog` | `{ date, description, account_id, tag_id, is_transfer, destination_account_id, amount, currency }` |
-| `PUT` | `/transactions/:id` | `save` in `TransactionFormDialog`, and Classifier `apply` | Same body. Classifier sends `is_transfer: false` and the chosen `tag_id` |
-| `DELETE` | `/transactions/:id` | `remove` | |
-| `GET` | `/transactions/:id/splits` | `["transaction-splits", parentId]` | Loaded when the split dialog opens |
-| `PUT` | `/transactions/:id/splits` | `save` in `SplitDialog` | `{ rows: [{ id, description, amount, tag_id }] }` |
-| `POST` | `/transactions/import/preview/:accountId` | `previewUpload` | Multipart `file`, optional `default_tag_id` |
-| `POST` | `/transactions/import/:accountId` | `upload` | Same upload. Response `{ imported, skipped }` |
-
-`invalidateTransactionQueries` clears `["transactions"]`, `["transactions-analytics"]`, `["transactions-summary"]`, `["dashboard"]` (and so both dashboard keys), `["accounts-balances"]`, and `["transactions-tag-trend"]`.
-
-### Classifier — `ClassifierPage` via `classifierApi`
-
-| Method | Path | Query key or mutation | Notes |
-| --- | --- | --- | --- |
-| `GET` | `/api/classifier/transactions/untagged` | `["classifier-untagged-transactions", accountId]` | Enabled when an account is selected. Query `account_id` |
-| `POST` | `/api/classifier/train` | `retrain` | `{ account_id }`. Does not write tags |
-| `POST` | `/api/classifier/predict` | `predict` | `{ account_id, transaction_ids }` for the loaded untagged rows |
-
-Applying a suggestion is `PUT /transactions/:id` on the backend client. That invalidates the untagged list and `["transactions"]`.
+The rule that breaks most often: after any transaction write, call `invalidateTransactionQueries` (`frontend/src/api/queries.ts`). It clears `["transactions"]`, `["transactions-analytics"]`, `["transactions-summary"]`, `["transactions-tag-trend"]`, `["accounts-balances"]`, and everything under `["dashboard"]`. The dashboard is anchored on the newest non-transfer transaction, not on today. `TransactionsPage` takes `from`, `to`, `tag_id`, and `account_id` from the URL.
 
 ## Conventions
 
-- Keep HTTP handlers thin. Put parsing, import, and training logic in service modules.
+- Keep HTTP handlers thin. New parsing, import, validation, and training logic goes in a service module (`backend/app/services/`, `classifier/app/services/`). `backend/app/api/transactions.py` predates this rule and still holds transfer, split, and import helpers. Do not add to them; when you change one, move it into a service.
 - Scope data by `user_id`. A missing owned row is a 404.
 - Amounts are `Numeric(12, 2)` in the API as strings on the frontend. Do not do money math with binary floats.
 - Transfers are paired rows sharing `transfer_group_id`. All-accounts views must not double-count a pair.
 - Splits are child rows pointing at `parent_transaction_id`.
 - Behavior changes get a note under `specs/` in a `[specs]` commit. Older notes in that folder are background for the current code.
 - Create every spec directly inside `specs/`, as a Markdown file with a unique, descriptive kebab-case name, such as `specs/import-preview-gating-unconfigured-mapping.md`. Do not reuse an existing spec's name; update that spec instead if it covers the same change.
+- Do not open, search, or read `backups/`. It holds real database dumps with personal financial data. Exclude it from broad searches.
+
+## Patterns to copy
+
+| New thing | Start from |
+| --- | --- |
+| CRUD router | `backend/app/api/tags.py` |
+| Service with unit tests | `backend/app/services/dashboard_insights.py` and `backend/tests/test_dashboard_insights.py` |
+| API test against Postgres | `backend/tests/test_transaction_update.py` (fixtures in `conftest.py`) |
+| Page test | `frontend/tests/ProfilePage.test.tsx` |
+| Money formatting and sums | `frontend/src/lib/money.ts` and `frontend/tests/money.test.ts` |
 
 ## Contributing
 
