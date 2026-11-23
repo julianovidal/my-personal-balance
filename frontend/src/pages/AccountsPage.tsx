@@ -41,11 +41,22 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getApiErrorMessage } from "@/lib/auth-errors"
-import { formatCents, toCents, totalsByCurrency } from "@/lib/money"
+import { formatCents, toCents } from "@/lib/money"
 import { cn } from "@/lib/utils"
 import { AccountFormDialog } from "@/pages/accounts/AccountFormDialog"
 import { ImportMappingSheet } from "@/pages/accounts/ImportMappingSheet"
 import type { Account, AccountsBalanceResponse } from "@/types"
+
+/** Server totals per currency, with how many accounts use each currency. */
+function currencyTotals(data: AccountsBalanceResponse | undefined) {
+  const counts = new Map<string, number>()
+  for (const item of data?.by_account ?? []) counts.set(item.currency, (counts.get(item.currency) ?? 0) + 1)
+  return (data?.totals ?? []).map((total) => ({
+    currency: total.currency,
+    cents: toCents(total.balance),
+    count: counts.get(total.currency) ?? 0,
+  }))
+}
 
 export function AccountsPage() {
   const qc = useQueryClient()
@@ -76,7 +87,7 @@ export function AccountsPage() {
 
   const list = accounts.data ?? []
   const balanceById = new Map((balances.data?.by_account ?? []).map((b) => [b.account_id, b]))
-  const totals = totalsByCurrency(balances.data?.by_account ?? [])
+  const totals = currencyTotals(balances.data)
   const openCreate = () => setForm({ open: true, account: null })
 
   return (

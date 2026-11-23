@@ -15,11 +15,14 @@ const ACCOUNTS = [
   { id: 3, name: "Savings", currency: "EUR", user_id: 1 },
 ]
 const BALANCES = {
-  overall_balance: 999,
+  totals: [
+    { currency: "BRL", balance: "-50.00" },
+    { currency: "EUR", balance: "0.30" },
+  ],
   by_account: [
-    { account_id: 1, account_name: "Checking", currency: "EUR", balance: 0.1 },
-    { account_id: 2, account_name: "Brazil", currency: "BRL", balance: -50 },
-    { account_id: 3, account_name: "Savings", currency: "EUR", balance: 0.2 },
+    { account_id: 1, account_name: "Checking", currency: "EUR", balance: "0.10" },
+    { account_id: 2, account_name: "Brazil", currency: "BRL", balance: "-50.00" },
+    { account_id: 3, account_name: "Savings", currency: "EUR", balance: "0.20" },
   ],
 }
 const MAPPING = {
@@ -63,16 +66,26 @@ describe("AccountsPage", () => {
     expect(within(brazil).getByText("-R$50.00")).toBeInTheDocument()
   })
 
-  it("shows one total per currency instead of a mixed overall", async () => {
+  it("shows one total per currency from the server's totals", async () => {
     renderWithProviders(<AccountsPage />)
     expect(await screen.findByText("Total in EUR")).toBeInTheDocument()
     expect(screen.getByText("€0.30")).toBeInTheDocument()
+    expect(screen.getByText("Across 2 accounts")).toBeInTheDocument()
     expect(screen.getByText("Total in BRL")).toBeInTheDocument()
-    expect(screen.queryByText("999")).not.toBeInTheDocument()
+    expect(screen.getByText("Across 1 account")).toBeInTheDocument()
+  })
+
+  it("uses the totals the server sends rather than adding balances in the browser", async () => {
+    mockGets({
+      "/accounts/balances": { ...BALANCES, totals: [{ currency: "EUR", balance: "1234.56" }] },
+    })
+    renderWithProviders(<AccountsPage />)
+    expect(await screen.findByText("€1,234.56")).toBeInTheDocument()
+    expect(screen.queryByText("Total in BRL")).not.toBeInTheDocument()
   })
 
   it("shows an empty state", async () => {
-    mockGets({ "/accounts": [], "/accounts/balances": { overall_balance: 0, by_account: [] } })
+    mockGets({ "/accounts": [], "/accounts/balances": { totals: [], by_account: [] } })
     renderWithProviders(<AccountsPage />)
     expect(await screen.findByText("No accounts yet")).toBeInTheDocument()
   })

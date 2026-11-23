@@ -2,23 +2,26 @@ import { ArrowDownRightIcon, ArrowUpRightIcon, ScaleIcon } from "lucide-react"
 
 import { Card, CardAction, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatAmount, toCents } from "@/lib/money"
+import { formatMoney, toCents } from "@/lib/money"
 import { cn } from "@/lib/utils"
-import type { MonthlySummaryResponse } from "@/types"
+import type { MonthlySummaryCard } from "@/types"
 
 type Props = {
-  summary?: MonthlySummaryResponse
+  /** Totals for one currency; undefined when the period has no rows. */
+  totals?: MonthlySummaryCard
   loading: boolean
+  /** Currency to show zeros in when there are no totals. Null shows a dash. */
   currency: string | null
   periodLabel: string
 }
 
-export function SummaryCards({ summary, loading, currency, periodLabel }: Props) {
-  const net = toCents(summary?.overall.net)
+export function SummaryCards({ totals, loading, currency, periodLabel }: Props) {
+  const shownCurrency = totals?.currency ?? currency
+  const net = toCents(totals?.net)
   const cards = [
-    { label: "Income", value: summary?.overall.income, icon: ArrowUpRightIcon, tone: "" },
-    { label: "Expenses", value: summary?.overall.expenses, icon: ArrowDownRightIcon, tone: "" },
-    { label: "Net", value: summary?.overall.net, icon: ScaleIcon, tone: net < 0 ? "text-destructive" : "" },
+    { label: "Income", value: totals?.income, icon: ArrowUpRightIcon, tone: "" },
+    { label: "Expenses", value: totals?.expenses, icon: ArrowDownRightIcon, tone: "" },
+    { label: "Net", value: totals?.net, icon: ScaleIcon, tone: net < 0 ? "text-destructive" : "" },
   ]
 
   return (
@@ -31,7 +34,7 @@ export function SummaryCards({ summary, loading, currency, periodLabel }: Props)
               <Skeleton className="h-8 w-36" />
             ) : (
               <CardTitle className={cn("text-2xl font-semibold tabular-nums @[250px]/card:text-3xl", tone)}>
-                {formatAmount(value ?? 0, currency)}
+                {shownCurrency ? formatMoney(value ?? 0, shownCurrency) : "—"}
               </CardTitle>
             )}
             <CardAction>
