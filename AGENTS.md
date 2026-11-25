@@ -20,8 +20,8 @@ The classifier reads the same Postgres database and the same JWT secret as the b
 ## Run
 
 ```bash
-podman-compose -f compose.yml up --build
-podman exec -it balance-api python -m app.scripts.seed
+kiri compose -f compose.yml up --build
+kiri exec -it balance-api python -m app.scripts.seed
 ```
 
 Backend startup runs `alembic upgrade head`, then uvicorn with reload. Frontend and classifier source are bind-mounted.

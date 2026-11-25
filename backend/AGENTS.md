@@ -11,7 +11,7 @@ uv sync                                  # install
 uv add <package>==<version>              # add a dependency (updates both files)
 uv run alembic upgrade head              # migrate (the container also does this at startup)
 uv run pytest                            # tests
-podman exec -it balance-api python -m app.scripts.seed   # demo data in compose
+kiri exec -it balance-api python -m app.scripts.seed   # demo data in compose
 ```
 
 ## Layout
