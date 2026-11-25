@@ -8,6 +8,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score
 from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.multiclass import OneVsRestClassifier
 from sklearn.naive_bayes import ComplementNB
 from sklearn.pipeline import Pipeline
 from sklearn.svm import LinearSVC
@@ -30,10 +31,15 @@ def _candidate_models() -> list[tuple[str, Pipeline]]:
                     ("tfidf", TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), max_features=5000)),
                     (
                         "clf",
-                        LogisticRegression(
-                            max_iter=2000,
-                            class_weight="balanced",
-                            solver="liblinear",
+                        # liblinear fits one binary model per tag. scikit-learn 1.8
+                        # stopped doing that implicitly for multiclass input, so the
+                        # one-versus-rest scheme is made explicit.
+                        OneVsRestClassifier(
+                            LogisticRegression(
+                                max_iter=2000,
+                                class_weight="balanced",
+                                solver="liblinear",
+                            )
                         ),
                     ),
                 ]
