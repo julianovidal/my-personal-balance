@@ -21,3 +21,6 @@ classifier/data/*.joblib
 
 # DB backups
 backups/
+
+# Per-spec plans and task lists (local only)
+tasks/
