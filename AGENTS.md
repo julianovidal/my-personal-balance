@@ -95,6 +95,7 @@ The rule that breaks most often: after any transaction write, call `invalidateTr
 - Splits are child rows pointing at `parent_transaction_id`.
 - Behavior changes get a note under `specs/` in a `[specs]` commit. Older notes in that folder are background for the current code.
 - Create every spec directly inside `specs/`, as a Markdown file with a unique, descriptive kebab-case name, such as `specs/import-preview-gating-unconfigured-mapping.md`. Do not reuse an existing spec's name; update that spec instead if it covers the same change.
+- Implementation plans and task lists go in `tasks/<spec-name>/plan.md` and `tasks/<spec-name>/todo.md`, where `<spec-name>` is the spec's file name without `.md`. Each spec gets its own folder so parallel work never shares a file. `tasks/` is gitignored: never commit it, and never write a shared `tasks/plan.md` or `tasks/todo.md`.
 - Do not open, search, or read `backups/`. It holds real database dumps with personal financial data. Exclude it from broad searches.
 
 ## Patterns to copy
