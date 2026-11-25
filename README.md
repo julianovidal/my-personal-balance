@@ -10,13 +10,13 @@ Self-hosted personal finance app. Track accounts, transactions, transfers, and t
 | Backend | FastAPI, SQLAlchemy, Alembic, JWT |
 | Classifier | FastAPI, scikit-learn |
 | Database | PostgreSQL 16 |
-| Runtime | Podman and podman-compose (any Docker-compatible engine works) |
+| Runtime | Kiri (`kiri compose`) (any Docker-compatible engine works) |
 | Packages | pnpm (frontend), uv (Python) |
 
 ## Run
 
 ```bash
-podman-compose -f compose.yml up --build
+kiri compose -f compose.yml up --build
 ```
 
 | Service | URL |
@@ -28,7 +28,7 @@ podman-compose -f compose.yml up --build
 Migrations run on backend startup. Load demo data with:
 
 ```bash
-podman exec -it balance-api python -m app.scripts.seed
+kiri exec -it balance-api python -m app.scripts.seed
 ```
 
 Demo login: `demo@balance.local` / `demo1234`
