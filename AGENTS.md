@@ -24,7 +24,7 @@ kiri compose -f compose.yml up --build
 kiri exec -it balance-api python -m app.scripts.seed
 ```
 
-Backend startup runs `alembic upgrade head`, then uvicorn with reload. Frontend and classifier source are bind-mounted.
+All three app services bind-mount their source. Backend startup runs `alembic upgrade head`, then uvicorn with `--reload`; the frontend hot-reloads through Vite. The classifier runs uvicorn without `--reload`, so run `kiri restart balance-classifier` after changing classifier code. Matching files on disk do not mean the server runs them.
 
 Local commands, without compose:
 
