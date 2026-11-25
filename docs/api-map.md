@@ -80,7 +80,7 @@ List and charts all send `date_from` and `date_to`. Account and tag filters are 
 | --- | --- | --- | --- |
 | `GET` | `/api/classifier/transactions/untagged` | `["classifier-untagged-transactions", accountId]` | Enabled when an account is selected. Query `account_id` |
 | `POST` | `/api/classifier/train` | `retrain` | `{ account_id }`. Does not write tags |
-| `POST` | `/api/classifier/predict` | `predict` | `{ account_id, transaction_ids }` for the loaded untagged rows |
+| `POST` | `/api/classifier/predict` | `predict` | `{ account_id, transaction_ids }` for the loaded untagged rows. Rows the classifier is unsure about are left out of `predictions` |
 
 Applying a suggestion is `PUT /transactions/:id` on the backend client. That invalidates the untagged list and `["transactions"]`.
 

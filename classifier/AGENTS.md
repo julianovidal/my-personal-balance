@@ -22,6 +22,8 @@ Python 3.14 (`.python-version`).
 - `test_training.py` fits each candidate in `_candidate_models()` directly and checks its macro-F1 against recorded baselines, on equal-sized and uneven tag fixtures. `train_model` skips a candidate that raises, so a broken candidate would otherwise only show up as a different winner.
 - `test_model_store.py` covers saving, loading, and unloadable model files.
 - `test_untagged_transactions.py` runs the untagged-rows query on in-memory SQLite.
+- `test_retrieval.py` covers normalization, the second-occurrence case, abstaining, newest-wins ties, and old bundles without an index.
+- `benchmarks/replay_eval.py` replays an account month by month against the real database and prints only aggregates. Use it before changing thresholds or candidates; shuffled macro-F1 does not measure the next month's suggestions.
 - When a scikit-learn upgrade changes a baseline score by more than the tolerance, treat it as a behavior change and ask before updating the number.
 
 ## Layout
@@ -32,7 +34,8 @@ app/
 ├── core/         config (MODEL_DATA_DIR), read access to the shared database, security
 ├── schemas/      Pydantic request and response models
 └── services/
-    ├── training.py     candidate models, cross-validated macro-F1 scoring, predict_with_confidence
+    ├── training.py     candidate models, cross-validated macro-F1 scoring, suggest_tags (retrieval then model)
+    ├── retrieval.py    description normalization and the nearest-neighbour index
     ├── untagged_transactions.py  rows to list and predict: untagged, not transfers, not split parents
     └── model_store.py  joblib save and load per user and account
 data/             model files (gitignored, never commit .joblib)
