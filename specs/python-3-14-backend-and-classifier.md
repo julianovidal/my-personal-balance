@@ -183,6 +183,12 @@ Commits 2 and 3 must pass on the old stack before any version change. That's wha
 - [ ] Classifier training on one real account picks the same model, with macro-F1 within 0.02 of the 3.12 run.
 - [ ] Predict on an account whose model was saved under scikit-learn 1.7.1 returns the "train first" response, not a 500.
 
+## Outcome notes
+
+- **Logistic regression candidate.** scikit-learn 1.8 raises on `LogisticRegression(solver="liblinear")` with multiclass labels, so on 1.9.1 `train_model` would skip it without saying so. It is now `OneVsRestClassifier(LogisticRegression(...))`. That is not equivalent when `class_weight="balanced"`: each binary model balances one tag against the rest, where liblinear used to weigh all tags together. On the checked account (user 1, account 11: 6635 rows, 19 tags), macro-F1 went from 0.7250 to 0.7425, and logistic regression still wins. This was kept on purpose, and `tests/test_training.py` pins the scores on uneven tags.
+- **Saved models.** Bundles saved on scikit-learn 1.7.1, including the old implicit-liblinear logistic regression, load and predict on 1.9.1 with only an `InconsistentVersionWarning`. Retraining after deploy is optional. The unloadable-model fallback is a safety net.
+- **Test client.** `httpx` was replaced by `httpx2` in the backend dev group, because Starlette deprecated `httpx` for its test client.
+
 ## Decisions
 
 - `requires-python = ">=3.14"`.
