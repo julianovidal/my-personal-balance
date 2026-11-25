@@ -54,3 +54,19 @@ def training_rows() -> list[dict]:
         for description in descriptions:
             rows.append({"description": description, "tag_id": tag_id})
     return rows
+
+
+# Real accounts have tags of very different sizes. With class_weight="balanced"
+# that changes how the logistic regression candidate weighs each tag, which
+# equal-sized fixtures cannot show.
+_UNEVEN_SIZES = {GROCERIES: 60, TRANSPORT: 20, RESTAURANTS: 6}
+
+
+def uneven_training_rows() -> list[dict]:
+    rows = []
+    for tag_id, size in _UNEVEN_SIZES.items():
+        descriptions = _DESCRIPTIONS[tag_id]
+        for n in range(size):
+            base = descriptions[n % len(descriptions)]
+            rows.append({"description": f"{base} {(n * 7919) % 10000:04d}", "tag_id": tag_id})
+    return rows
