@@ -18,7 +18,7 @@ from app.services.training import (
     predict_with_confidence,
     train_model,
 )
-from tests.fixtures import GROCERIES, RESTAURANTS, TRANSPORT, training_rows
+from tests.fixtures import GROCERIES, RESTAURANTS, TRANSPORT, training_rows, uneven_training_rows
 
 SCORE_TOLERANCE = 0.02
 BASELINE_SCORES = {
@@ -50,6 +50,33 @@ def test_each_candidate_fits_and_scores_like_the_baseline(name):
     score = _score_model(name, model, x, y, cv_splits=_cv_splits(y))
 
     assert score == pytest.approx(BASELINE_SCORES[name], abs=SCORE_TOLERANCE)
+
+
+# Recorded with the explicit one-versus-rest wrapper. The previous implicit
+# liblinear one-versus-rest scored 0.7162 here: it weighed tags across all
+# classes at once, where the wrapper balances each tag against the rest.
+UNEVEN_BASELINE_SCORES = {
+    "logistic_regression": 0.7481,
+    "complement_nb": 0.8130,
+    "calibrated_linear_svc": 0.8222,
+}
+
+
+@pytest.mark.parametrize("name", list(UNEVEN_BASELINE_SCORES))
+def test_each_candidate_scores_like_the_baseline_on_uneven_tags(name):
+    rows = uneven_training_rows()
+    x, y = _to_text(rows), _to_labels(rows)
+    model = dict(_candidate_models())[name]
+
+    score = _score_model(name, model, x, y, cv_splits=_cv_splits(y))
+
+    assert score == pytest.approx(UNEVEN_BASELINE_SCORES[name], abs=SCORE_TOLERANCE)
+
+
+def test_train_picks_the_best_candidate_on_uneven_tags():
+    result = train_model(uneven_training_rows(), user_id=1, account_id=1)
+
+    assert result["bundle"]["metadata"]["model_name"] == "calibrated_linear_svc"
 
 
 def test_candidates_are_the_three_documented_models():
