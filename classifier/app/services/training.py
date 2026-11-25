@@ -13,6 +13,13 @@ from sklearn.naive_bayes import ComplementNB
 from sklearn.pipeline import Pipeline
 from sklearn.svm import LinearSVC
 
+from app.services.retrieval import build_index, query_index
+
+# A row with no close tagged neighbour gets the model's tag only when the model
+# is at least this sure. Below it the row gets no suggestion: a wrong
+# suggestion costs more than a missing one.
+FALLBACK_CONFIDENCE = 0.6
+
 
 def _to_text(rows: list[dict[str, Any]]) -> list[str]:
     return [str(row.get("description") or "").strip().lower() for row in rows]
@@ -130,13 +137,15 @@ def train_model(rows: list[dict[str, Any]], user_id: int, account_id: int) -> di
         }
 
     best_model.fit(x, y)
+    # Rows arrive oldest first, so ties in similarity go to the newest tag.
+    retrieval = build_index([str(row["description"]) for row in filtered_rows], y)
 
     trained_at = datetime.now(timezone.utc)
     metadata = {
         "user_id": user_id,
         "account_id": account_id,
         "trained_at": trained_at,
-        "model_name": best_name,
+        "model_name": f"nearest_neighbour + {best_name}",
         "score": round(best_score, 4),
         "sample_count": len(filtered_rows),
         "class_count": len(labels),
@@ -147,6 +156,7 @@ def train_model(rows: list[dict[str, Any]], user_id: int, account_id: int) -> di
         "reason": None,
         "bundle": {
             "model": best_model,
+            "retrieval": retrieval,
             "metadata": metadata,
         },
     }
@@ -164,3 +174,29 @@ def predict_with_confidence(bundle: dict[str, Any], descriptions: list[str]) -> 
         confidences = [0.0 for _ in predicted]
 
     return predicted, confidences
+
+
+def suggest_tags(bundle: dict[str, Any], descriptions: list[str]) -> list[tuple[int | None, float]]:
+    """Return ``(tag or None, confidence)`` per description.
+
+    The closest tagged rows decide first. Rows with no close match fall back
+    to the model when it is confident enough, and otherwise get ``None``.
+    Bundles saved before the nearest-neighbour index existed keep the old
+    behaviour: always the model's tag.
+    """
+    if not descriptions:
+        return []
+    tags, confidences = predict_with_confidence(bundle, descriptions)
+    retrieval = bundle.get("retrieval")
+    if retrieval is None:
+        return list(zip(tags, confidences))
+
+    suggestions: list[tuple[int | None, float]] = []
+    for (near_tag, near_conf, _), tag, confidence in zip(query_index(retrieval, descriptions), tags, confidences):
+        if near_tag is not None:
+            suggestions.append((near_tag, near_conf))
+        elif confidence >= FALLBACK_CONFIDENCE:
+            suggestions.append((tag, confidence))
+        else:
+            suggestions.append((None, confidence))
+    return suggestions

@@ -76,7 +76,7 @@ def test_each_candidate_scores_like_the_baseline_on_uneven_tags(name):
 def test_train_picks_the_best_candidate_on_uneven_tags():
     result = train_model(uneven_training_rows(), user_id=1, account_id=1)
 
-    assert result["bundle"]["metadata"]["model_name"] == "calibrated_linear_svc"
+    assert result["bundle"]["metadata"]["model_name"] == "nearest_neighbour + calibrated_linear_svc"
 
 
 def test_candidates_are_the_three_documented_models():
@@ -86,7 +86,7 @@ def test_candidates_are_the_three_documented_models():
 def test_train_picks_the_best_candidate(trained):
     metadata = trained["bundle"]["metadata"]
 
-    assert metadata["model_name"] == "complement_nb"
+    assert metadata["model_name"] == "nearest_neighbour + complement_nb"
     assert metadata["score"] == pytest.approx(BASELINE_SCORES["complement_nb"], abs=SCORE_TOLERANCE)
     assert metadata["sample_count"] == 36
     assert metadata["class_count"] == 3
