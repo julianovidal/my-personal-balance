@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import io
 
 import pandas as pd
@@ -83,8 +83,8 @@ def _parse_rows(df: pd.DataFrame, normalized: dict[str, str]) -> list[dict]:
 
 def _parse_single_row(row: pd.Series, normalized: dict[str, str]) -> dict:
     parsed_date = _parse_date(row[normalized["date"]])
-    description = str(row[normalized["description"]]).strip()
-    amount_value = Decimal(str(row[normalized["amount"]]))
+    description = _parse_description(row[normalized["description"]])
+    amount_value = _parse_amount(row[normalized["amount"]])
     currency: str | None = None
     if "currency" in normalized:
         currency_value = row[normalized["currency"]]
@@ -92,8 +92,6 @@ def _parse_single_row(row: pd.Series, normalized: dict[str, str]) -> dict:
         if raw_currency:
             currency = normalize_currency(raw_currency)
 
-    if not description:
-        raise ValueError("Description cannot be empty")
     item = {
         "date": _ensure_date(parsed_date),
         "description": description,
@@ -104,6 +102,29 @@ def _parse_single_row(row: pd.Series, normalized: dict[str, str]) -> dict:
     if "tag_id" in normalized and pd.notna(row[normalized["tag_id"]]):
         item["tag_id"] = int(row[normalized["tag_id"]])
     return item
+
+
+def _is_blank(value: object) -> bool:
+    return pd.isna(value) or (isinstance(value, str) and not value.strip())
+
+
+def _parse_description(value: object) -> str:
+    if _is_blank(value):
+        raise ValueError("Description cannot be empty")
+    return str(value).strip()
+
+
+def _parse_amount(value: object) -> Decimal:
+    if _is_blank(value):
+        raise ValueError("Amount cannot be empty")
+    text = str(value).strip()
+    try:
+        amount = Decimal(text)
+    except InvalidOperation:
+        amount = None
+    if amount is None or not amount.is_finite():
+        raise ValueError(f'Invalid amount "{text}"')
+    return amount
 
 
 def _parse_date(value: object) -> date:

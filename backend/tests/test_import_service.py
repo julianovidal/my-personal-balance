@@ -8,7 +8,7 @@ only together with a spec that changes the behavior.
 
 import datetime
 import io
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 import pytest
 from openpyxl import Workbook
@@ -132,13 +132,11 @@ def test_month_first_slash_date_is_a_row_error_and_other_rows_still_parse():
     assert [row["date"] for row in rows] == [datetime.date(2025, 1, 2)]
 
 
-def test_current_blank_description_becomes_the_text_nan():
-    # Known issue: a blank cell is read as NaN and turned into "nan", so the
-    # empty-description check never fires for CSV input.
+def test_blank_description_is_a_row_error():
     rows, errors = parse_transactions_with_errors("bank.csv", csv("date,description,amount", "2025-01-01,,1"))
 
-    assert errors == []
-    assert rows[0]["description"] == "nan"
+    assert rows == []
+    assert errors == [{"row": 2, "message": "Description cannot be empty"}]
 
 
 def test_whitespace_description_is_a_row_error():
@@ -150,11 +148,21 @@ def test_whitespace_description_is_a_row_error():
     assert errors == [{"row": 2, "message": "Description cannot be empty"}]
 
 
-def test_current_non_numeric_amount_raises_instead_of_a_row_error():
-    # Known issue: decimal.InvalidOperation is not a ValueError, so it escapes
-    # the per-row error handling.
-    with pytest.raises(InvalidOperation):
-        parse_transactions_with_errors("bank.csv", csv("date,description,amount", "2025-01-01,a,abc"))
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        ("", "Amount cannot be empty"),
+        ("abc", 'Invalid amount "abc"'),
+        ("inf", 'Invalid amount "inf"'),
+    ],
+)
+def test_bad_amount_is_a_row_error_and_other_rows_still_parse(value, message):
+    rows, errors = parse_transactions_with_errors(
+        "bank.csv", csv("date,description,amount", f"2025-01-01,a,{value}", "2025-01-02,b,2")
+    )
+
+    assert errors == [{"row": 2, "message": message}]
+    assert [row["description"] for row in rows] == ["b"]
 
 
 def test_column_mapping_selects_custom_headers_case_insensitively():
