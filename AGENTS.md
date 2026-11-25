@@ -36,6 +36,8 @@ cd classifier && uv sync && uv run uvicorn app.main:app --reload --port 8001
 
 Use pnpm in `frontend/` and uv in the Python services. Commit `pnpm-lock.yaml` and both `pyproject.toml` and `uv.lock` together.
 
+Both Python services run on Python 3.14 (`requires-python = ">=3.14"`, a `.python-version` in each service, `python:3.14-slim` images). uv picks the interpreter from `.python-version`; run `uv python install 3.14` once if it is missing. Keep pins exact, and keep packages the two services share at the same version.
+
 ## Frontend
 
 Routes in `frontend/src/App.tsx`: `/login`, `/` (dashboard), `/accounts`, `/transactions`, `/classifier`, `/profile`. Everything except login sits behind `ProtectedRoute`.
@@ -56,7 +58,7 @@ Tests: `pnpm test` (Vitest). Every page has a test file under `frontend/tests/`.
 
 Routers are mounted under `/api` in `backend/app/main.py`.
 
-Auth is JWT (`python-jose`), password hashing is bcrypt. `get_current_user` scopes every query to the caller. Allowed currencies are `USD`, `EUR`, and `BRL` (`app/core/currency.py`).
+Auth is JWT (`python-jose`). Passwords are hashed with `bcrypt` directly (no passlib) in `app/core/security.py`; new passwords over 72 bytes are rejected with a 422. `get_current_user` scopes every query to the caller. Allowed currencies are `USD`, `EUR`, and `BRL` (`app/core/currency.py`).
 
 Domain tables:
 
@@ -72,7 +74,7 @@ Import accepts CSV or XLSX. Required fields are date, description, and amount. C
 
 Migrations are in `backend/alembic/versions/`. Add a new revision for schema changes; do not edit applied revisions.
 
-The backend has a pytest suite in `backend/tests/` (`cd backend && uv run pytest`). API tests use a `balance_test` database on the compose Postgres, created on first run. The classifier has no test suite yet.
+The backend has a pytest suite in `backend/tests/` (`cd backend && uv run pytest`). API tests use a `balance_test` database on the compose Postgres, created on first run. The classifier has a pytest suite in `classifier/tests/` (`cd classifier && uv run pytest`) that needs no database.
 
 ## Classifier
 
