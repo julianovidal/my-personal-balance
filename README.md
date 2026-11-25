@@ -31,7 +31,7 @@ Migrations run on backend startup. Load demo data with:
 kiri exec -it balance-api python -m app.scripts.seed
 ```
 
-Demo login: `demo@balance.local` / `demo1234`
+Demo login: `demo@example.com` / `demo1234`
 
 ## Layout
 
