@@ -20,7 +20,7 @@ kiri exec -it balance-api python -m app.scripts.seed   # demo data in compose
 app/
 ├── main.py       app, CORS, routers under /api
 ├── api/          HTTP handlers, one router per resource; deps.py has get_current_user
-├── core/         config, database session, security (JWT, bcrypt), currency, default_tags
+├── core/         config, database session, security (JWT, direct bcrypt), currency, default_tags
 ├── models/       SQLAlchemy tables (column definitions live here)
 ├── schemas/      Pydantic request and response models
 ├── services/     dashboard_insights.py (dashboard rules), import_service.py (CSV/XLSX parsing),
@@ -45,7 +45,9 @@ New logic goes in `app/services/` as plain functions that take a `Session` or da
 
 ## Tests
 
-Pure function tests need no database. API tests use a real Postgres database, `balance_test`, on the compose `db` service (`localhost:5432`). It is created on first run and kept separate from `balance`. Set `TEST_DATABASE_URL` to use another one. Do not switch to SQLite: the queries rely on Postgres behavior.
+Python 3.14 (`.python-version`). The test client uses `httpx2`, which Starlette prefers over `httpx`.
+
+Pure function tests need no database. `test_import_service.py` and `test_security.py` pin parser and hashing behavior; tests named `test_current_*` lock in known quirks and change only with a spec. `test_security.py` holds a stored passlib-era hash that must keep verifying. API tests use a real Postgres database, `balance_test`, on the compose `db` service (`localhost:5432`). It is created on first run and kept separate from `balance`. Set `TEST_DATABASE_URL` to use another one. Do not switch to SQLite: the queries rely on Postgres behavior.
 
 ## Known issues
 

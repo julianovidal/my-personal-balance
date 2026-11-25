@@ -7,8 +7,8 @@ Self-hosted personal finance app. Track accounts, transactions, transfers, and t
 | Layer | Technology |
 | --- | --- |
 | Frontend | React 19, TypeScript, Vite 8, Tailwind CSS 4, shadcn/ui on Base UI, shadcn charts (Recharts), TanStack Query |
-| Backend | FastAPI, SQLAlchemy, Alembic, JWT |
-| Classifier | FastAPI, scikit-learn |
+| Backend | Python 3.14, FastAPI, SQLAlchemy, Alembic, JWT |
+| Classifier | Python 3.14, FastAPI, scikit-learn |
 | Database | PostgreSQL 16 |
 | Runtime | Kiri (`kiri compose`) (any Docker-compatible engine works) |
 | Packages | pnpm (frontend), uv (Python) |
@@ -63,7 +63,7 @@ Keep each commit to a single prefix. Write the description in the imperative moo
 - Use pnpm in `frontend/` and uv in `backend/` and `classifier/`. Commit the lockfile with any dependency change.
 - Add a new Alembic revision for schema changes. Do not edit a revision that has already been applied.
 - Cover frontend changes that render money or accept user input with a Vitest test.
-- Run `uv run pytest` in `backend/` for backend changes. API tests need the compose Postgres running. Run `pnpm test`, `pnpm run lint` and `pnpm run build` in `frontend/` before committing.
+- Run `uv run pytest` in `backend/` for backend changes, and in `classifier/` for classifier changes. Backend API tests need the compose Postgres running. Run `pnpm test`, `pnpm run lint` and `pnpm run build` in `frontend/` before committing.
 - Do not commit `.env` files or classifier `.joblib` models.
 
 ## License
