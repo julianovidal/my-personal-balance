@@ -1,8 +1,12 @@
 """Password hashing in app/core/security.py, without a database.
 
-These tests pin current behavior so passlib can be replaced with direct bcrypt
-calls and bcrypt can move from 4 to 5 (specs/python-3-14-backend-and-classifier.md).
+These tests pinned passlib's behavior before it was replaced with direct bcrypt
+calls, ahead of the move from bcrypt 4 to 5 (specs/python-3-14-backend-and-classifier.md).
+The only expectation that changed is that hashing a password longer than 72
+bytes is now rejected.
 """
+
+import pytest
 
 from app.core.security import hash_password, verify_password
 
@@ -40,12 +44,47 @@ def test_non_ascii_password_round_trips():
     assert not verify_password("contrasena-nandu-E", hashed)
 
 
-def test_current_password_longer_than_72_bytes_is_cut_at_72():
-    # bcrypt only uses the first 72 bytes. passlib with bcrypt 4 cuts the rest
-    # off silently, so the 72-byte prefix verifies too.
-    long_password = "a" * 73
-    hashed = hash_password(long_password)
+def test_password_of_exactly_72_bytes_hashes_and_verifies():
+    password = "a" * 72
+    hashed = hash_password(password)
 
-    assert verify_password(long_password, hashed)
-    assert verify_password("a" * 72, hashed)
+    assert verify_password(password, hashed)
     assert not verify_password("a" * 71, hashed)
+
+
+def test_password_longer_than_72_bytes_is_rejected_when_hashing():
+    # bcrypt reads only 72 bytes. Rejecting longer passwords is the one planned
+    # change from passlib, which cut them off silently.
+    with pytest.raises(ValueError, match="at most 72 bytes"):
+        hash_password("a" * 73)
+
+
+def test_multibyte_characters_count_as_bytes_not_characters():
+    with pytest.raises(ValueError, match="at most 72 bytes"):
+        hash_password("ñ" * 37)  # 37 characters, 74 bytes
+
+
+def test_long_password_still_verifies_against_a_hash_passlib_cut_at_72():
+    # passlib hashed only the first 72 bytes of a longer password. Verifying
+    # cuts the same way, so those users can still log in with what they typed.
+    hash_of_first_72_bytes = hash_password("a" * 72)
+
+    assert verify_password("a" * 73, hash_of_first_72_bytes)
+    assert verify_password("a" * 200, hash_of_first_72_bytes)
+
+
+@pytest.mark.parametrize(
+    "bad_hash",
+    [
+        "",
+        "not-a-hash",
+        "$2b$12$short",  # bcrypt 4.0.1 panics on this one
+        STORED_HASH[:-1],
+        STORED_HASH + "x",
+        "$1$" + STORED_HASH[3:],
+        "plaintext-password",
+        "contraseña",
+    ],
+)
+def test_malformed_stored_hash_does_not_verify(bad_hash):
+    assert verify_password("anything", bad_hash) is False
