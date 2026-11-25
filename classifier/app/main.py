@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import bindparam, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -19,6 +19,7 @@ from app.schemas.classifier import (
 )
 from app.services.model_store import load_model_bundle, save_model_bundle
 from app.services.training import predict_with_confidence, train_model
+from app.services.untagged_transactions import untagged_transactions
 
 app = FastAPI(title=settings.app_name)
 
@@ -66,21 +67,7 @@ def list_untagged_transactions(
 ):
     _assert_account_ownership(db, user_id, account_id)
 
-    rows = db.execute(
-        text(
-            """
-            SELECT t.id, t.date, t.description, t.account_id, t.amount, t.currency
-            FROM transactions t
-            JOIN accounts a ON a.id = t.account_id
-            WHERE a.user_id = :user_id
-              AND t.account_id = :account_id
-              AND t.tag_id IS NULL
-              AND t.is_transfer = FALSE
-            ORDER BY t.date DESC, t.id DESC
-            """
-        ),
-        {"user_id": user_id, "account_id": account_id},
-    ).mappings().all()
+    rows = untagged_transactions(db, user_id=user_id, account_id=account_id)
 
     return [UntaggedTransaction.model_validate(dict(row)) for row in rows]
 
@@ -134,46 +121,20 @@ def predict_transactions(
             predictions=[],
         )
 
-    base_query = text(
-        """
-        SELECT t.id, t.description
-        FROM transactions t
-        JOIN accounts a ON a.id = t.account_id
-        WHERE a.user_id = :user_id
-          AND t.account_id = :account_id
-          AND t.tag_id IS NULL
-          AND t.is_transfer = FALSE
-        ORDER BY t.date DESC, t.id DESC
-        """
+    if payload.transaction_ids is not None and len(payload.transaction_ids) == 0:
+        return PredictResponse(
+            model_ready=True,
+            reason=None,
+            meta=_metadata_response(bundle),
+            predictions=[],
+        )
+
+    rows = untagged_transactions(
+        db,
+        user_id=user_id,
+        account_id=payload.account_id,
+        transaction_ids=payload.transaction_ids,
     )
-    params: dict[str, Any] = {"user_id": user_id, "account_id": payload.account_id}
-
-    if payload.transaction_ids is not None:
-        if len(payload.transaction_ids) == 0:
-            return PredictResponse(
-                model_ready=True,
-                reason=None,
-                meta=_metadata_response(bundle),
-                predictions=[],
-            )
-
-        tx_query = text(
-            """
-            SELECT t.id, t.description
-            FROM transactions t
-            JOIN accounts a ON a.id = t.account_id
-            WHERE a.user_id = :user_id
-              AND t.account_id = :account_id
-              AND t.tag_id IS NULL
-              AND t.is_transfer = FALSE
-              AND t.id IN :tx_ids
-            ORDER BY t.date DESC, t.id DESC
-            """
-        ).bindparams(bindparam("tx_ids", expanding=True))
-        base_query = tx_query
-        params["tx_ids"] = payload.transaction_ids
-
-    rows = db.execute(base_query, params).mappings().all()
     if len(rows) == 0:
         return PredictResponse(
             model_ready=True,
