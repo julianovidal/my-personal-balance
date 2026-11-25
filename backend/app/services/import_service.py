@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 import io
 
@@ -9,6 +9,7 @@ from app.core.currency import normalize_currency
 
 REQUIRED_COLUMNS = {"date", "description", "amount"}
 OPTIONAL_COLUMNS = {"currency", "tag_id"}
+SLASH_DATE_FORMATS = ("%d/%m/%Y", "%d/%m/%y")
 
 
 def parse_transactions_from_upload(filename: str, content: bytes, column_mapping: dict[str, str] | None = None) -> list[dict]:
@@ -81,7 +82,7 @@ def _parse_rows(df: pd.DataFrame, normalized: dict[str, str]) -> list[dict]:
 
 
 def _parse_single_row(row: pd.Series, normalized: dict[str, str]) -> dict:
-    parsed_date = pd.to_datetime(row[normalized["date"]]).date()
+    parsed_date = _parse_date(row[normalized["date"]])
     description = str(row[normalized["description"]]).strip()
     amount_value = Decimal(str(row[normalized["amount"]]))
     currency: str | None = None
@@ -103,6 +104,21 @@ def _parse_single_row(row: pd.Series, normalized: dict[str, str]) -> dict:
     if "tag_id" in normalized and pd.notna(row[normalized["tag_id"]]):
         item["tag_id"] = int(row[normalized["tag_id"]])
     return item
+
+
+def _parse_date(value: object) -> date:
+    if isinstance(value, str) and "/" in value:
+        return _parse_slash_date(value.strip())
+    return _ensure_date(pd.to_datetime(value).date())
+
+
+def _parse_slash_date(text: str) -> date:
+    for date_format in SLASH_DATE_FORMATS:
+        try:
+            return datetime.strptime(text, date_format).date()
+        except ValueError:
+            continue
+    raise ValueError(f'Invalid date "{text}": use DD/MM/YYYY')
 
 
 def _ensure_date(value: object) -> date:

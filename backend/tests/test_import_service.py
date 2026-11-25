@@ -115,11 +115,21 @@ def test_day_first_date_that_cannot_be_month_first():
     assert rows[0]["date"] == datetime.date(2025, 1, 15)
 
 
-def test_current_ambiguous_slash_date_is_read_month_first():
-    # Known issue: 03/04/2025 becomes 4 March, while 15/01/2025 is read day-first.
-    rows, _ = parse_transactions_with_errors("bank.csv", csv("date,description,amount", "03/04/2025,a,1"))
+@pytest.mark.parametrize("value", ["03/04/2025", "03/04/25", "3/4/2025", '" 03/04/2025 "'])
+def test_ambiguous_slash_date_is_read_day_first(value):
+    rows, errors = parse_transactions_with_errors("bank.csv", csv("date,description,amount", f"{value},a,1"))
 
-    assert rows[0]["date"] == datetime.date(2025, 3, 4)
+    assert errors == []
+    assert rows[0]["date"] == datetime.date(2025, 4, 3)
+
+
+def test_month_first_slash_date_is_a_row_error_and_other_rows_still_parse():
+    rows, errors = parse_transactions_with_errors(
+        "bank.csv", csv("date,description,amount", "01/15/2025,a,1", "02/01/2025,b,2")
+    )
+
+    assert errors == [{"row": 2, "message": 'Invalid date "01/15/2025": use DD/MM/YYYY'}]
+    assert [row["date"] for row in rows] == [datetime.date(2025, 1, 2)]
 
 
 def test_current_blank_description_becomes_the_text_nan():
