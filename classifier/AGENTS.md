@@ -21,6 +21,7 @@ Python 3.14 (`.python-version`).
 
 - `test_training.py` fits each candidate in `_candidate_models()` directly and checks its macro-F1 against recorded baselines, on equal-sized and uneven tag fixtures. `train_model` skips a candidate that raises, so a broken candidate would otherwise only show up as a different winner.
 - `test_model_store.py` covers saving, loading, and unloadable model files.
+- `test_untagged_transactions.py` runs the untagged-rows query on in-memory SQLite.
 - When a scikit-learn upgrade changes a baseline score by more than the tolerance, treat it as a behavior change and ask before updating the number.
 
 ## Layout
@@ -32,6 +33,7 @@ app/
 ├── schemas/      Pydantic request and response models
 └── services/
     ├── training.py     candidate models, cross-validated macro-F1 scoring, predict_with_confidence
+    ├── untagged_transactions.py  rows to list and predict: untagged, not transfers, not split parents
     └── model_store.py  joblib save and load per user and account
 data/             model files (gitignored, never commit .joblib)
 ```
@@ -45,6 +47,5 @@ data/             model files (gitignored, never commit .joblib)
 
 ## Known issues
 
-- `GET /api/classifier/transactions/untagged` returns every untagged non-transfer row, including split parts and split parents. Tagging a split part through `PUT /transactions/:id` keeps it in its split; only its description and tag can change there.
 - There is no route to read the current model's metadata. The frontend shows it only after a train or predict call.
 - `calibrated_linear_svc` is skipped on accounts where a tag has fewer than 3 rows in a training fold, because `CalibratedClassifierCV(cv=3)` needs 3 per tag. `train_model` hides the error, so only the other two candidates compete there.
