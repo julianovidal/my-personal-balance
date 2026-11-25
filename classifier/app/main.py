@@ -18,7 +18,7 @@ from app.schemas.classifier import (
     UntaggedTransaction,
 )
 from app.services.model_store import load_model_bundle, save_model_bundle
-from app.services.training import predict_with_confidence, train_model
+from app.services.training import suggest_tags, train_model
 from app.services.untagged_transactions import untagged_transactions
 
 app = FastAPI(title=settings.app_name)
@@ -90,6 +90,7 @@ def train_account_model(
               AND t.account_id = :account_id
               AND t.tag_id IS NOT NULL
               AND t.is_transfer = FALSE
+            ORDER BY t.date, t.id
             """
         ),
         {"user_id": user_id, "account_id": payload.account_id},
@@ -144,15 +145,17 @@ def predict_transactions(
         )
 
     descriptions = [str(row["description"] or "") for row in rows]
-    predicted_tags, confidences = predict_with_confidence(bundle, descriptions)
+    suggestions = suggest_tags(bundle, descriptions)
 
+    # A row the classifier is unsure about is left out, so it gets no suggestion.
     items = [
         PredictionItem(
             transaction_id=int(row["id"]),
-            suggested_tag_id=int(predicted_tags[idx]),
-            confidence=round(float(confidences[idx]), 4),
+            suggested_tag_id=int(tag),
+            confidence=round(float(confidence), 4),
         )
-        for idx, row in enumerate(rows)
+        for row, (tag, confidence) in zip(rows, suggestions)
+        if tag is not None
     ]
 
     return PredictResponse(
