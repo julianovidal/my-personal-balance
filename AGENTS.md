@@ -78,7 +78,7 @@ The backend has a pytest suite in `backend/tests/` (`cd backend && uv run pytest
 
 ## Classifier
 
-Training uses tagged, non-transfer transactions for one account. It needs at least 20 descriptions and 2 distinct tags. It fits TF-IDF character n-grams with logistic regression, complement naive Bayes, and a calibrated linear SVM, then keeps the best macro-F1 model. The frontend calls are in [`docs/api-map.md`](docs/api-map.md#classifier--classifierpage-via-classifierapi).
+Training uses tagged, non-transfer transactions for one account. It needs at least 20 descriptions and 2 distinct tags. It fits TF-IDF character n-grams with logistic regression, complement naive Bayes, and a calibrated linear SVM, then keeps the best macro-F1 model as a fallback. Predict first suggests the tag of the closest tagged rows (normalized descriptions, cosine similarity at least 0.6, newest rows win ties), then the model's tag when its probability is at least 0.6, and otherwise leaves the row out (`specs/classifier-nearest-neighbour-suggestions.md`). The frontend calls are in [`docs/api-map.md`](docs/api-map.md#classifier--classifierpage-via-classifierapi).
 
 Models are joblib files at `{MODEL_DATA_DIR}/model_user_{user_id}_account_{account_id}.joblib`. That directory is gitignored.
 
