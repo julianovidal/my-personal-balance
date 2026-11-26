@@ -42,6 +42,8 @@ class PredictionItem(BaseModel):
     transaction_id: int
     suggested_tag_id: int
     confidence: float
+    # No close tagged row and an unsure model: the user should check it.
+    low_confidence: bool = False
 
 
 class PredictResponse(BaseModel):

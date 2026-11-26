@@ -147,15 +147,14 @@ def predict_transactions(
     descriptions = [str(row["description"] or "") for row in rows]
     suggestions = suggest_tags(bundle, descriptions)
 
-    # A row the classifier is unsure about is left out, so it gets no suggestion.
     items = [
         PredictionItem(
             transaction_id=int(row["id"]),
             suggested_tag_id=int(tag),
             confidence=round(float(confidence), 4),
+            low_confidence=low_confidence,
         )
-        for row, (tag, confidence) in zip(rows, suggestions)
-        if tag is not None
+        for row, (tag, confidence, low_confidence) in zip(rows, suggestions)
     ]
 
     return PredictResponse(
