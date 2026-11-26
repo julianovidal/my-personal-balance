@@ -28,19 +28,21 @@ def test_a_merchant_tagged_once_is_suggested_on_its_next_occurrence():
     rows = training_rows() + [{"description": "BASIC FIT 0042 CHAMARTIN", "tag_id": GYM}]
 
     result = train_model(rows, user_id=1, account_id=1)
-    [(tag, confidence)] = suggest_tags(result["bundle"], ["BASIC FIT 0107 CHAMARTIN"])
+    [(tag, confidence, low_confidence)] = suggest_tags(result["bundle"], ["BASIC FIT 0107 CHAMARTIN"])
 
     assert tag == GYM
     assert confidence > 0.6
+    assert low_confidence is False
 
 
-def test_nothing_is_suggested_when_no_tagged_row_is_close_and_the_model_is_unsure():
+def test_an_unsure_guess_is_still_suggested_but_flagged_low_confidence():
     result = train_model(training_rows(), user_id=1, account_id=1)
 
-    [(tag, confidence)] = suggest_tags(result["bundle"], ["XYZ UNKNOWN"])
+    [(tag, confidence, low_confidence)] = suggest_tags(result["bundle"], ["XYZ UNKNOWN"])
 
-    assert tag is None
+    assert tag in {GROCERIES, TRANSPORT, RESTAURANTS}
     assert confidence < FALLBACK_CONFIDENCE
+    assert low_confidence is True
 
 
 def test_clear_merchants_still_get_their_tags():
@@ -50,7 +52,11 @@ def test_clear_merchants_still_get_their_tags():
         result["bundle"], ["COMPRA MERCADONA 9999", "UBER *TRIP ZZZ", "RESTAURANTE LA PLAZA"]
     )
 
-    assert [tag for tag, _ in suggestions] == [GROCERIES, TRANSPORT, RESTAURANTS]
+    assert [(tag, low) for tag, _, low in suggestions] == [
+        (GROCERIES, False),
+        (TRANSPORT, False),
+        (RESTAURANTS, False),
+    ]
 
 
 def test_the_newest_tag_wins_among_identical_rows():
@@ -84,13 +90,16 @@ def test_leave_one_out_ignores_the_row_itself():
     assert [tag for tag, _, _ in results] == [None, None]
 
 
-def test_a_bundle_saved_before_retrieval_keeps_always_suggesting():
+def test_a_bundle_saved_before_retrieval_uses_the_model_alone():
     bundle = dict(train_model(training_rows(), user_id=1, account_id=1)["bundle"])
     del bundle["retrieval"]
 
-    [(tag, _)] = suggest_tags(bundle, ["XYZ UNKNOWN"])
+    [unsure, sure] = suggest_tags(bundle, ["XYZ UNKNOWN", "COMPRA MERCADONA 9999"])
 
-    assert tag in {GROCERIES, TRANSPORT, RESTAURANTS}
+    assert unsure[0] in {GROCERIES, TRANSPORT, RESTAURANTS}
+    assert unsure[2] is True
+    assert sure[0] == GROCERIES
+    assert sure[2] is False
 
 
 def test_no_descriptions_give_no_suggestions():

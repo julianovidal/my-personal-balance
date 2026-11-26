@@ -15,9 +15,9 @@ from sklearn.svm import LinearSVC
 
 from app.services.retrieval import build_index, query_index
 
-# A row with no close tagged neighbour gets the model's tag only when the model
-# is at least this sure. Below it the row gets no suggestion: a wrong
-# suggestion costs more than a missing one.
+# A row with no close tagged neighbour still gets the model's tag, but below
+# this probability the suggestion is flagged as low confidence so the user
+# checks it before applying.
 FALLBACK_CONFIDENCE = 0.6
 
 
@@ -176,27 +176,25 @@ def predict_with_confidence(bundle: dict[str, Any], descriptions: list[str]) -> 
     return predicted, confidences
 
 
-def suggest_tags(bundle: dict[str, Any], descriptions: list[str]) -> list[tuple[int | None, float]]:
-    """Return ``(tag or None, confidence)`` per description.
+def suggest_tags(bundle: dict[str, Any], descriptions: list[str]) -> list[tuple[int, float, bool]]:
+    """Return ``(tag, confidence, low_confidence)`` per description.
 
-    The closest tagged rows decide first. Rows with no close match fall back
-    to the model when it is confident enough, and otherwise get ``None``.
-    Bundles saved before the nearest-neighbour index existed keep the old
-    behaviour: always the model's tag.
+    The closest tagged rows decide first. Rows with no close match get the
+    model's tag, flagged as low confidence when the model is below
+    ``FALLBACK_CONFIDENCE``. Bundles saved before the nearest-neighbour index
+    existed use the model alone, with the same flag.
     """
     if not descriptions:
         return []
     tags, confidences = predict_with_confidence(bundle, descriptions)
     retrieval = bundle.get("retrieval")
     if retrieval is None:
-        return list(zip(tags, confidences))
+        return [(tag, confidence, confidence < FALLBACK_CONFIDENCE) for tag, confidence in zip(tags, confidences)]
 
-    suggestions: list[tuple[int | None, float]] = []
+    suggestions: list[tuple[int, float, bool]] = []
     for (near_tag, near_conf, _), tag, confidence in zip(query_index(retrieval, descriptions), tags, confidences):
         if near_tag is not None:
-            suggestions.append((near_tag, near_conf))
-        elif confidence >= FALLBACK_CONFIDENCE:
-            suggestions.append((tag, confidence))
+            suggestions.append((near_tag, near_conf, False))
         else:
-            suggestions.append((None, confidence))
+            suggestions.append((tag, confidence, confidence < FALLBACK_CONFIDENCE))
     return suggestions
