@@ -6,7 +6,7 @@ How might we suggest the right tag from a merchant's first repeat, and suggest f
 
 ## Recommended Direction
 
-Nearest-neighbour retrieval over normalized descriptions first, the existing TF-IDF model as a confident-only fallback, and no suggestion otherwise. A merchant tagged once matches its next occurrence by construction. Similar wording (different store numbers, references, typos) is handled by character n-grams after normalization. Precision is controlled by one similarity threshold and one fallback threshold.
+Nearest-neighbour retrieval over normalized descriptions first, the existing TF-IDF model as the fallback, with its unsure guesses flagged "Low confidence" in the UI. A merchant tagged once matches its next occurrence by construction. Similar wording (different store numbers, references, typos) is handled by character n-grams after normalization. One similarity threshold and one confidence threshold decide which suggestions are flagged.
 
 When neighbours disagree, the majority of the three closest rows wins, with lowered confidence. Among equally similar rows the newest vote, which turned out to matter more than anything else: tagging habits drift over years.
 
@@ -17,14 +17,16 @@ Local embeddings (qwen3-embedding:0.6b) come later, and only if the replay shows
 - [x] The same merchant stays lexically similar after normalization. On account 11, second occurrences went from 69.6% to 81.2% right.
 - [x] Recency beats history for frequent merchants. Newest-first ties raised precision on merchants seen 5+ times from 89.1% to 95%+.
 - [ ] Thresholds of 0.6/0.6 generalize. They were picked on the same replay they are reported on. Re-run `benchmarks/replay_eval.py` after a few months of new tags.
-- [ ] Abstaining on about 20% of rows feels better than a wrong suggestion in the UI. Check on the Classifier page.
+- [x] Leaving about 20% of rows blank felt worse in manual testing than a flagged guess, so every row now gets one.
 - [ ] Account 10's weaker 2–4x bucket (n=29) is noise, not a pattern.
 
 ## MVP Scope
 
-In: `app/services/retrieval.py` (normalize, index, vote), `suggest_tags` in `training.py`, predict omits unsure rows, training rows ordered by date, the replay harness, and tests.
+In: `app/services/retrieval.py` (normalize, index, vote), `suggest_tags` in `training.py`, training rows ordered by date, the replay harness, and tests.
 
-Out: frontend changes, schema changes, auto-retrain, embeddings, cross-account memory.
+In, after testing: `low_confidence` on each prediction and a badge on the Classifier page.
+
+Out: schema changes, auto-retrain, embeddings, cross-account memory.
 
 ## Not Doing (and Why)
 
