@@ -33,7 +33,7 @@ import type {
   Tag,
 } from "@/types"
 
-type Prediction = { tagId: number; confidence: number }
+type Prediction = { tagId: number; confidence: number; low: boolean }
 
 export function ClassifierPage() {
   const accounts = useAccounts()
@@ -127,7 +127,8 @@ function AccountClassifier({ account, tags }: { account: Account; tags: Tag[] })
         return
       }
       const next: Record<number, Prediction> = {}
-      for (const p of data.predictions) next[p.transaction_id] = { tagId: p.suggested_tag_id, confidence: p.confidence }
+      for (const p of data.predictions)
+        next[p.transaction_id] = { tagId: p.suggested_tag_id, confidence: p.confidence, low: p.low_confidence === true }
       setPredictions(next)
       // Suggestions fill the tag picker, but never overwrite a tag the user picked.
       setPicked((prev) => {
@@ -135,9 +136,13 @@ function AccountClassifier({ account, tags }: { account: Account; tags: Tag[] })
         for (const p of data.predictions) merged[p.transaction_id] ??= String(p.suggested_tag_id)
         return merged
       })
+      const count = data.predictions.length
+      const low = data.predictions.filter((p) => p.low_confidence === true).length
       setStatus({
         tone: "ok",
-        text: `Suggested tags for ${data.predictions.length} ${data.predictions.length === 1 ? "transaction" : "transactions"}.`,
+        text:
+          `Suggested tags for ${count} ${count === 1 ? "transaction" : "transactions"}` +
+          (low ? `, ${low} with low confidence.` : "."),
       })
     },
   })
@@ -284,8 +289,9 @@ function AccountClassifier({ account, tags }: { account: Account; tags: Tag[] })
                       <TableCell className="max-w-0 w-full">
                         <p className="truncate">{tx.description}</p>
                         {prediction && (
-                          <p className="truncate text-xs text-muted-foreground md:hidden">
+                          <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground md:hidden">
                             Suggested {tagLabel(prediction.tagId)} · {Math.round(prediction.confidence * 100)}%
+                            {prediction.low && <LowConfidenceBadge />}
                           </p>
                         )}
                       </TableCell>
@@ -293,7 +299,15 @@ function AccountClassifier({ account, tags }: { account: Account; tags: Tag[] })
                         {formatMoney(tx.amount, tx.currency)}
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        {prediction ? <Confidence label={tagLabel(prediction.tagId)} value={prediction.confidence} /> : "—"}
+                        {prediction ? (
+                          <Confidence
+                            label={tagLabel(prediction.tagId)}
+                            value={prediction.confidence}
+                            low={prediction.low}
+                          />
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
                       <TableCell>
                         <SimpleSelect
@@ -326,13 +340,25 @@ function AccountClassifier({ account, tags }: { account: Account; tags: Tag[] })
   )
 }
 
-function Confidence({ label, value }: { label: string; value: number }) {
+// A guess from the model with no similar tagged row behind it.
+function LowConfidenceBadge() {
+  return (
+    <Badge variant="outline" className="shrink-0 text-muted-foreground">
+      Low confidence
+    </Badge>
+  )
+}
+
+function Confidence({ label, value, low }: { label: string; value: number; low: boolean }) {
   const pct = Math.round(value * 100)
   return (
     <div className="flex min-w-32 flex-col gap-1">
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="truncate">{label}</span>
-        <span className={cn("tabular-nums", pct < 50 && "text-muted-foreground")}>{pct}%</span>
+        <span className="flex items-center gap-1.5">
+          {low && <LowConfidenceBadge />}
+          <span className={cn("tabular-nums", pct < 50 && "text-muted-foreground")}>{pct}%</span>
+        </span>
       </div>
       <div className="h-1.5 rounded-full bg-muted" aria-hidden>
         <div

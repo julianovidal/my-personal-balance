@@ -208,6 +208,8 @@ export type ClassifierPredictionItem = {
   transaction_id: number;
   suggested_tag_id: number;
   confidence: number;
+  // No close tagged row and an unsure model: check before applying.
+  low_confidence: boolean;
 };
 
 export type ClassifierPredictResponse = {

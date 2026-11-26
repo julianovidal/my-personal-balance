@@ -53,8 +53,8 @@ describe("ClassifierPage", () => {
           reason: null,
           meta: META,
           predictions: [
-            { transaction_id: 10, suggested_tag_id: 5, confidence: 0.91 },
-            { transaction_id: 11, suggested_tag_id: 6, confidence: 0.42 },
+            { transaction_id: 10, suggested_tag_id: 5, confidence: 0.91, low_confidence: false },
+            { transaction_id: 11, suggested_tag_id: 6, confidence: 0.42, low_confidence: true },
           ],
         },
       }
@@ -98,9 +98,21 @@ describe("ClassifierPage", () => {
       account_id: 1,
       transaction_ids: [10, 11],
     })
-    expect(await screen.findByText("Suggested tags for 2 transactions.")).toBeInTheDocument()
+    expect(await screen.findByText("Suggested tags for 2 transactions, 1 with low confidence.")).toBeInTheDocument()
     expect(screen.getByText("91%")).toBeInTheDocument()
     expect(screen.getByLabelText("Tag for Bakery")).toHaveTextContent("Food")
+    expect(screen.getByLabelText("Tag for Landlord")).toHaveTextContent("Rent")
+  })
+
+  it("marks only low-confidence suggestions and still fills their tag pickers", async () => {
+    renderWithProviders(<ClassifierPage />)
+    await screen.findByText("Bakery")
+    await userEvent.click(screen.getByRole("button", { name: /Predict all/ }))
+    await screen.findByText("Suggested tags for 2 transactions, 1 with low confidence.")
+    const landlord = screen.getByText("Landlord").closest("tr")!
+    const bakery = screen.getByText("Bakery").closest("tr")!
+    expect(within(landlord).getAllByText("Low confidence").length).toBeGreaterThan(0)
+    expect(within(bakery).queryByText("Low confidence")).not.toBeInTheDocument()
     expect(screen.getByLabelText("Tag for Landlord")).toHaveTextContent("Rent")
   })
 
@@ -110,7 +122,7 @@ describe("ClassifierPage", () => {
     await userEvent.click(screen.getByLabelText("Tag for Bakery"))
     await userEvent.click(await screen.findByRole("option", { name: "Rent" }))
     await userEvent.click(screen.getByRole("button", { name: /Predict all/ }))
-    await screen.findByText("Suggested tags for 2 transactions.")
+    await screen.findByText("Suggested tags for 2 transactions, 1 with low confidence.")
     expect(screen.getByLabelText("Tag for Bakery")).toHaveTextContent("Rent")
   })
 
